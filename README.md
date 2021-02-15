@@ -1,5 +1,7 @@
 # Maple Cloud version of Structural Identifiability Analyzer
 
+The web-version is available [here](https://maple.cloud/app/5710317752942592/SIAN).
+
 This app allows to assess (local and global) identifiability/observability for models defined by systems of parametric ODEs. The app uses [SIAN software](https://github.com/pogudingleb/SIAN) on the backend. The algorithm is based on the following papers:
 
 * [Global Identifiability of Differential Models](https://onlinelibrary.wiley.com/doi/abs/10.1002/cpa.21921) (Communications on Pure and Applied Mathematics, Volume 73, Issue 9, Pages 1831-1879, 2020) 
