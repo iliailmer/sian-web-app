@@ -492,9 +492,9 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     if infolevel > 0 then
         LogText(sprintf("ME Computing input-output equations\n"), target):
     end if:
+    
     model_denomfree := ExtractDenominator(model_eqs):
     io_eqs := GetIOEquations(model_denomfree, states, inputs, outputs, params, true, infolevel, target):
-    
     if infolevel > 0 then
         LogText(sprintf("ME Total number of io-equations: %a\n", nops(io_eqs)), target):
     end if:
@@ -532,30 +532,32 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
     result := [bound, generators]:
 
-    if simplified_generators then
+    if simplified_generators or result[1]=1 then
         if infolevel > 0 then
 		  LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), target):
         end if:
         result := [op(result), FilterGenerators(FieldToIdeal(generators))]:
     end if:
-    LogText(sprintf(convert(result, string)), target):
-    if simplified_generators then
+    
+
+    result[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result[2])});
+    if simplified_generators or result[1]=1 then
         DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result[3], list)), 'refresh'):
     else
-    	   DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(select(x->whattype(x)<>integer, {seq(op(each), each in result[2])}), list)), 'refresh'):
+    	   DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result[2], list)), 'refresh'):
     fi: 
     skip_simplify := false:
     if bound > 0 then
     	  DocumentTools:-SetProperty(output_targets[2], expression, bound, 'refresh'):
     	  if bound=1 then
     	  	skip_simplify := true:
-    	  	if output_targets[5] then
-    	  		if simplified_generators then
+    	  	#if output_targets[5] then
+    	  		#if simplified_generators then
        			DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[3], list)), 'refresh'):
-   			else
-    	   			DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[3], list)), 'refresh'):
-   			fi:
-   		fi:
+   			#else
+    	   		#	DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[2], list)), 'refresh'):
+   			#fi:
+   		#fi:
     	  fi:
     else
 	  DocumentTools:-SetProperty(output_targets[2], expression, "",'refresh'):
@@ -571,6 +573,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     	   use_brackets:=false:
     	   outputs_permutations:= combinat[permute](outputs):
     	   outputs_permutations:= outputs_permutations[..min(nops(outputs_permutations),max_perms)];
+    	   
 	   for use_brackets in [true, false] do
 	   	LogText(sprintf("Use Brackets?\t%a\n", use_brackets), target):
 	   	for outputs_ in outputs_permutations do
@@ -604,13 +607,14 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
         	    end if: 
         	    if bound_sb<bound then
         	        bound:=bound_sb:
-        	        result_sb := [io_coeffs_sb]:
+        	        result_sb := [bound, io_coeffs_sb]:
         	        best_output_ordering:=outputs_;
               fi:
 	     od: # end of loop over permutations
 	   od: # end of loop over use_brackets [true/false]
-	   io_coeffs := result_sb[1]:
-	   if simplified_generators then
+	   io_coeffs := result_sb[2]:
+	   
+	   if simplified_generators or result_sb[1]=1 then
             if infolevel > 0 then
                 LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), target):
             end if:
@@ -623,26 +627,29 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
             end do:
             result_sb := [op(result), FilterGenerators(FieldToIdeal(generators))]:
         end if:
-        if simplified_generators then
-            DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result[3], list)), 'refresh'):
+
+		
+        result_sb[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result_sb[2])});
+        if simplified_generators or result_sb[1]=1 then
+            DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
         else
-    	       DocumentTools:-SetProperty(output_targets[1], expression, convert(select(x->whattype(x)<>integer, {seq(op(each), each in result[2])}), list), 'refresh'):
+    	       DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
         fi: 
         if StringTools[Has](output_targets[2], "1") then
     	   	DocumentTools:-SetProperty("being_refined1", caption, "", 'refresh'):
     	   else
    		DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
    	   fi:
-        if bound > 0 then
+        if bound_sb > 0 then
     	       DocumentTools:-SetProperty(output_targets[2], expression, bound, 'refresh'):
-    	       if bound=1 then
-    	  	      if output_targets[5] then
-    	  		     if simplified_generators then
-                        DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[3], list)), 'refresh'):
-                    else
-    	                   DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[3], list)), 'refresh'):
-   			     fi:
-   		      fi:
+    	       if bound_sb=1 then
+    	  	     # if output_targets[5] then
+    	  		     #if simplified_generators then
+                        DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
+                    #else
+    	               #    DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
+   			     #fi:
+   		     # fi:
     	       fi: # end of bound=1
         else
 	       DocumentTools:-SetProperty(output_targets[2], expression, "",'refresh'):
