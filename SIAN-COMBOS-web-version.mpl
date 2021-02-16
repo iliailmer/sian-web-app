@@ -532,7 +532,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
     result := [bound, generators]:
 
-    if simplified_generators or result[1]=1 then
+    if simplified_generators then
         if infolevel > 0 then
 		  LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), target):
         end if:
@@ -541,7 +541,8 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     
 
     result[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result[2])});
-    if simplified_generators or result[1]=1 then
+    
+    if simplified_generators then
         DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result[3], list)), 'refresh'):
     else
     	   DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result[2], list)), 'refresh'):
@@ -614,7 +615,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 	   od: # end of loop over use_brackets [true/false]
 	   io_coeffs := result_sb[2]:
 	   
-	   if simplified_generators or result_sb[1]=1 then
+	   if simplified_generators then
             if infolevel > 0 then
                 LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), target):
             end if:
@@ -630,7 +631,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
 		
         result_sb[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result_sb[2])});
-        if simplified_generators or result_sb[1]=1 then
+        if simplified_generators then
             DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
         else
     	       DocumentTools:-SetProperty(output_targets[1], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
