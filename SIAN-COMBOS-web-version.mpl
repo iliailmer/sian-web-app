@@ -552,12 +552,15 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     	  DocumentTools:-SetProperty(output_targets[2], expression, bound, 'refresh'):
     	  if bound=1 then
     	  	skip_simplify := true:
+    	  	if simplify_bound then
+    	  		LogText(sprintf("Bound on the number of experiments = 1, \"Try to refine bound\" was selected but it will be skipped"), target):
+    	  	fi:
     	  	#if output_targets[5] then
-    	  		#if simplified_generators then
+    	  		if simplified_generators then
        			DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[3], list)), 'refresh'):
-   			#else
-    	   		#	DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[2], list)), 'refresh'):
-   			#fi:
+   			else
+    	   			DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result[2], list)), 'refresh'):
+   			fi:
    		#fi:
     	  fi:
     else
@@ -645,11 +648,11 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     	       DocumentTools:-SetProperty(output_targets[2], expression, bound, 'refresh'):
     	       if bound_sb=1 then
     	  	     # if output_targets[5] then
-    	  		     #if simplified_generators then
+    	  		     if simplified_generators then
                         DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
-                    #else
-    	               #    DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
-   			     #fi:
+                    else
+    	                   DocumentTools:-SetProperty(output_targets[4], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
+   			     fi:
    		     # fi:
     	       fi: # end of bound=1
         else
