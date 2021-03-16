@@ -16,7 +16,7 @@ end:
 FieldToIdeal := proc(gens)
     # Input: generators of a subfield of the field of rational functions
     # Computes the MSQ ideal of the field with the new variables of the form x_aux
-    # See: https://mediatum.ub.tum.de/doc/685465/document.pdf Definition 2.16
+    # See: https://mediatum.u.tum.de/doc/685465/document.pdf Definition 2.16
     #      https://doi.org/10.1016/j.jsc.2005.09.010          Lemma 2.1
     local all_vars, subs_dupl, all_dupl, common_denom, polys, f, gb:
     all_vars := indets(gens):
@@ -436,7 +436,7 @@ SingleExperimentIdentifiableFunctions := proc(model, output_targets, {infolevel 
     if infolevel > 0 then
         LogText(sprintf("SE Step 4: restricting to the field of parameters"), output_targets[log]):
     end if:
-    result:=map(simplify, convert(FilterGenerators(FieldIntersection(si_gens, params)), list)):
+    	result:=map(simplify, convert(FilterGenerators(FieldIntersection(si_gens, params)), list)):
 	DocumentTools:-SetProperty(output_targets[single], expression, result, 'refresh'):
 	return result:
 end proc:
@@ -505,26 +505,26 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
     generators := {}:
     for io_coef in io_coeffs do
-        io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
-        for i from 2 to nops(io_coef) do
-            generators := {op(generators), io_coef[i] / io_coef[1]}:
-        end do:
+         io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
+         for i from 2 to nops(io_coef) do
+             generators := {op(generators), io_coef[i] / io_coef[1]}:
+         end do:
     end do:
 
 
     if no_bound = false then
-        for eq in io_eqs do
-            if infolevel > 0 then
+         for eq in io_eqs do
+             if infolevel > 0 then
                 LogText(sprintf("ME Constructing the Wronskian\n"), output_targets[log]):
-            end if:
-            wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, model, infolevel, output_targets[log])):
-            # in the notation of the theorem
-            s := nops(io_coef) - 1:
-            # substitution does not increase the rank, so the resulting bound will be correct
-            roll := rand(1..15):
-            wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
-            r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
-            bound := max(bound, s - r + 1):
+             end if:
+             wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, model, infolevel, output_targets[log])):
+             # in the notation of the theorem
+             s := nops(io_coef) - 1:
+             # substitution does not increase the rank, so the resulting bound will be correct
+             roll := rand(1..15):
+             wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
+             r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
+             bound := max(bound, s - r + 1):
          end do:
     end if:  
 
@@ -532,7 +532,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
     if simplified_generators then
         if infolevel > 0 then
-            LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
+		  LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
         end if:
         result := [op(result), FilterGenerators(FieldToIdeal(generators))]:
     end if:
@@ -543,86 +543,88 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     if simplified_generators then
         DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[3], list)), 'refresh'):
     else
-    	DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[2], list)), 'refresh'):
+    	   DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[2], list)), 'refresh'):
     fi: 
     skip_simplify := false:
     if bound > 0 then
-        DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
-        if bound=1 then
-        	skip_simplify := true:
+    	  DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
+    	  if bound=1 then
+    	  	skip_simplify := true:
     	  	if simplify_bound then
     	  		LogText(sprintf("Bound on the number of experiments = 1, \"Try to refine bound\" was selected but it will be skipped"), output_targets[log]):
     	  	fi:
-            if simplified_generators then
+    	  	#if output_targets[5] then
+    	  		if simplified_generators then
        			DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[3], list)), 'refresh'):
    			else
-                DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[2], list)), 'refresh'):
+    	   			DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[2], list)), 'refresh'):
    			fi:
+   		#fi:
     	  fi:
     else
-	    DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
+	  DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
     fi:
     
 
     if simplify_bound and not skip_simplify then
         if StringTools[Has](output_targets[bound_], "1") then
     	   	DocumentTools:-SetProperty("being_refined1", caption, "being refined", 'refresh'):
-        else
-   		    DocumentTools:-SetProperty("being_refined", caption, "being refined", 'refresh'):
-        fi:
-        use_brackets:=false:
-        outputs_permutations:= combinat[permute](outputs):
-        outputs_permutations:= outputs_permutations[..min(nops(outputs_permutations),max_perms)];
+    	   else
+   		DocumentTools:-SetProperty("being_refined", caption, "being refined", 'refresh'):
+   	   fi:
+    	   use_brackets:=false:
+    	   outputs_permutations:= combinat[permute](outputs):
+    	   outputs_permutations:= outputs_permutations[..min(nops(outputs_permutations),max_perms)];
     	   
-        for use_brackets in [true, false] do
-	   	    LogText(sprintf("Use Brackets?\t%a\n", use_brackets), output_targets[log]):
-	   	    for outputs_ in outputs_permutations do
-		        io_eqs_sb := GetIOEquations(model_denomfree, states, inputs, outputs_, params, use_brackets, infolevel,  output_targets[log]):
-		        if infolevel > 0 then
+	   for use_brackets in [true, false] do
+	   	LogText(sprintf("Use Brackets?\t%a\n", use_brackets), output_targets[log]):
+	   	for outputs_ in outputs_permutations do
+		    io_eqs_sb := GetIOEquations(model_denomfree, states, inputs, outputs_, params, use_brackets, infolevel,  output_targets[log]):
+		    if infolevel > 0 then
             	    LogText(sprintf("ME WARNING: Trying to Simlify Bound! \nTotal number of io-equations: %a\n", nops(io_eqs_sb)),  output_targets[log]):
-                end if:
-                LogText(sprintf("Permutation:\t%a\n", outputs_),  output_targets[log]):
+    	   	    end if:
+    	   	    LogText(sprintf("Permutation:\t%a\n", outputs_),  output_targets[log]):
     	   	    
-                io_coeffs_sb := []:
-                bound_sb := 0:
-                for eq in io_eqs do
-                    io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel,  output_targets[log])[1]:
-                    io_coeffs_sb := [op(io_coeffs_sb), io_coef]:
-                end do:
+    	   	    io_coeffs_sb := []:
+	         bound_sb := 0:
+	         for eq in io_eqs do
+	             io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel,  output_targets[log])[1]:
+	             io_coeffs_sb := [op(io_coeffs_sb), io_coef]:
+	         end do:
 		    
-	   	        if no_bound = false then
-                    for eq in io_eqs_sb do
-                        if infolevel > 0 then
-                            LogText(sprintf("ME Constructing the Wronskian\n"),  output_targets[log]):
-                        end if:
-                        wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs_, params, model, infolevel,  output_targets[log])):
-                        # in the notation of the theorem
-                        s := nops(io_coef) - 1:
-                        # substitution does not increase the rank, so the resulting bound will be correct
-                        roll := rand(1..15):
-                        wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
-                        r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
-                        bound_sb := max(bound_sb, s - r + 1):
-                    end do:
-                end if: 
-                if bound_sb<bound then
-                    bound:=bound_sb:
-                    result_sb := [bound, io_coeffs_sb]:
-                    best_output_ordering:=outputs_;
-                fi:
-            od: # end of loop over permutations
-        od: # end of loop over use_brackets [true/false]
-        io_coeffs := result_sb[2]:
+	   	    if no_bound = false then
+                  for eq in io_eqs_sb do
+                      if infolevel > 0 then
+                          LogText(sprintf("ME Constructing the Wronskian\n"),  output_targets[log]):
+                      end if:
+                      wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs_, params, model, infolevel,  output_targets[log])):
+                      # in the notation of the theorem
+                      s := nops(io_coef) - 1:
+                      # substitution does not increase the rank, so the resulting bound will be correct
+                      roll := rand(1..15):
+                      wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
+                      r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
+                      bound_sb := max(bound_sb, s - r + 1):
+                  end do:
+        	    end if: 
+        	    if bound_sb<bound then
+        	        bound:=bound_sb:
+        	        result_sb := [bound, io_coeffs_sb]:
+        	        best_output_ordering:=outputs_;
+              fi:
+	     od: # end of loop over permutations
+	   od: # end of loop over use_brackets [true/false]
+	   io_coeffs := result_sb[2]:
 	   
-        generators := {}:
+	   generators := {}:
         for io_coef in io_coeffs do
-            io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
-            for i from 2 to nops(io_coef) do
+		io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
+          for i from 2 to nops(io_coef) do
                 generators := {op(generators), io_coef[i] / io_coef[1]}:
-            end do:
+          end do:
         end do: 
         result_sb[2]:=generators;
-        if simplified_generators then
+	   if simplified_generators then
             if infolevel > 0 then
                 LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"),  output_targets[log]):
             end if:
@@ -631,24 +633,26 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
         if simplified_generators then
             DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
         else
-            DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
+    	       DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
         fi: 
         if StringTools[Has](output_targets[bound_], "1") then
-            DocumentTools:-SetProperty("being_refined1", caption, "", 'refresh'):
-        else
-            DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
-        fi:
+    	   	DocumentTools:-SetProperty("being_refined1", caption, "", 'refresh'):
+    	   else
+   		DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
+   	   fi:
         if bound_sb > 0 then
-            DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
-            if bound_sb=1 then
-                if simplified_generators then
-                    DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
-                else
-                    DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
-                fi:
-            fi: # end of bound=1
+    	       DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
+    	       if bound_sb=1 then
+    	  	     # if output_targets[5] then
+    	  		     if simplified_generators then
+                        DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
+                    else
+    	                   DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
+   			     fi:
+   		     # fi:
+    	       fi: # end of bound=1
         else
-            DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
+	       DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
         fi: # end of bound>0
     fi:	# end of simplify_bound
     
@@ -689,9 +693,9 @@ end proc:
 #===============================================================================
 
 #===============================================================================
-IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets)#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
+IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, {count_solutions:=true})#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
 #===============================================================================
-    local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
+ local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
         sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible, 
         eqs_i, JacX, vars, vars_to_add, ord_var, var_index, deg_variety, D2, 
         y_hat, u_hat, theta_hat, Et_hat, Q_hat, theta_l, theta_g, gb, v, X_eq, Y_eq, 
@@ -699,382 +703,391 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets)#{p 
         all_symbols_rhs, mu, x_vars, y_vars, u_vars, theta, subst_first_order,
         subst_zero_order, x_eqs, y_eqs, param, other_params, to_add, at_node,
         prime, max_rank, R, tr, e, p_local, xy_ders, polys_to_process, new_to_process, method, start, finish, infolevel,
-        num_nodes ,Et_x_vars, out_sian, var, G, P:
+        num_nodes ,Et_x_vars, out_sian, var, G, P, solutions_table:
 
-    #----------------------------------------------
-    # 0. Extract inputs, outputs, states, and parameters from the system
-    #----------------------------------------------
-    method := 2:
-    if SearchText(".", convert(system_ODEs, string)) <> 0 then
-        LogText(sprintf("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"), "LogAreaSIAN"):
-        WARNING("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"):
-    end if:
+  #----------------------------------------------
+  # 0. Extract inputs, outputs, states, and parameters from the system
+  #----------------------------------------------
+  method := 2:
+  
+  if SearchText(".", convert(system_ODEs, string)) <> 0 then
+    LogText(sprintf("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"), "LogAreaSIAN"):
+    WARNING("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"):
+  end if:
+  
+  if not (indets(system_ODEs, name) subset indets(system_ODEs)) then
+    LogText(sprintf(cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))), output_targets[log]):
+    DocumentTools:-SetProperty("GlobalParams1", expression, Error(BadName)):
+    DocumentTools:-SetProperty("LocalParams1", expression,  Error(BadName)):
+    DocumentTools:-SetProperty("NoIDParams1", expression,  Error(BadName)):
+    error (cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))):
+    return;
+  end if:
+  
+  randomize():
+  infolevel:=1:
+  num_nodes:=1:
+  if infolevel > 0 then
+    PrintHeader("0. Extracting states, inputs, outputs, and parameters from the system"):
+  end if:
+  x_functions := map(f -> int(f, t), select( f -> type(int(f, t), function(name)), map(lhs, system_ODEs) )):
+  y_functions := select( f -> not type(int(f, t), function(name)), map(lhs, system_ODEs) ):
+  all_symbols_rhs := foldl(`union`, op( map(e -> indets(rhs(e)), system_ODEs) )) minus {t}:
+  xy_ders := {op(x_functions), op(y_functions), op(select(f -> (f in all_symbols_rhs), map(lhs, system_ODEs)))}:
+  u_functions := select( f -> type(f, function), convert(all_symbols_rhs minus xy_ders, list)):
+  mu := convert(all_symbols_rhs minus {op(xy_ders), op(u_functions)}, list):
 
-    if not (indets(system_ODEs, name) subset indets(system_ODEs)) then
-        LogText(sprintf(cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))), output_targets[log]):
-        DocumentTools:-SetProperty("GlobalParams1", expression, Error(BadName)):
-        DocumentTools:-SetProperty("LocalParams1", expression,  Error(BadName)):
-        DocumentTools:-SetProperty("NoIDParams1", expression,  Error(BadName)):
-        error (cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))):
-        return;
-    end if:
-
-    randomize():
-    infolevel:=1:
-    num_nodes:=1:
-    if infolevel > 0 then
-        PrintHeader("0. Extracting states, inputs, outputs, and parameters from the system"):
-    end if:
-    x_functions := map(f -> int(f, t), select( f -> type(int(f, t), function(name)), map(lhs, system_ODEs) )):
-    y_functions := select( f -> not type(int(f, t), function(name)), map(lhs, system_ODEs) ):
-    all_symbols_rhs := foldl(`union`, op( map(e -> indets(rhs(e)), system_ODEs) )) minus {t}:
-    xy_ders := {op(x_functions), op(y_functions), op(select(f -> (f in all_symbols_rhs), map(lhs, system_ODEs)))}:
-    u_functions := select( f -> type(f, function), convert(all_symbols_rhs minus xy_ders, list)):
-    mu := convert(all_symbols_rhs minus {op(xy_ders), op(u_functions)}, list):
-
-    x_vars := map(FunctionToVariable, x_functions):
-    y_vars := map(FunctionToVariable, y_functions):
-    u_vars := map(FunctionToVariable, u_functions):
-    theta := map(ParamToInner, params_to_assess):
-    subst_first_order := {seq(diff(x_functions[i], t) = MakeDerivative(x_vars[i], 1), i = 1 .. nops(x_vars))}:
-    subst_zero_order := {
+  x_vars := map(FunctionToVariable, x_functions):
+  y_vars := map(FunctionToVariable, y_functions):
+  u_vars := map(FunctionToVariable, u_functions):
+  theta := map(ParamToInner, params_to_assess):
+  subst_first_order := {seq(diff(x_functions[i], t) = MakeDerivative(x_vars[i], 1), i = 1 .. nops(x_vars))}:
+  subst_zero_order := {
     seq(x_functions[i] = MakeDerivative(x_vars[i], 0), i = 1 .. nops(x_vars)),
     seq(y_functions[i] = MakeDerivative(y_vars[i], 0), i = 1 .. nops(y_vars)),
     seq(u_functions[i] = MakeDerivative(u_vars[i], 0), i = 1 .. nops(u_vars))
-    }:
-    x_eqs := subs(subst_zero_order, subs(subst_first_order, select(e -> type(int(lhs(e), t), function(name)), system_ODEs))):
-    y_eqs := subs(subst_zero_order, select(e -> not type(int(lhs(e), t), function(name)), system_ODEs)):
+  }:
+  x_eqs := subs(subst_zero_order, subs(subst_first_order, select(e -> type(int(lhs(e), t), function(name)), system_ODEs))):
+  y_eqs := subs(subst_zero_order, select(e -> not type(int(lhs(e), t), function(name)), system_ODEs)):
 
-    # taking into account that fact that Groebner[Basis] is Monte Carlo with probability of error 
-    # at most 10^(-18) (for Maple 2017)
-    p_local := p + nops(params_to_assess) * 10^(-18):
-    if p_local >= 1 then
-        LogTextSIAN("The probability of success cannot exceed 1 - #params_to_assess 10^{-18}. We reset it to 0.99");
-        p_local := 0.99:
-    end if:
+  # taking into account that fact that Groebner[Basis] is Monte Carlo with probability of error 
+  # at most 10^(-18) (for Maple 2017)
+  p_local := p + nops(params_to_assess) * 10^(-18):
+  if p_local >= 1 then
+    LogTextSIAN("The probability of success cannot exceed 1 - #params_to_assess 10^{-18}. We reset it to 0.99");
+    p_local := 0.99:
+  end if:
 
-    if infolevel > 0 then
-        LogText(sprintf("\n===== Input info =====\n"), output_targets[log]): 
-        LogText(sprintf("%s %a\n", `State variables:         `, x_functions), output_targets[log]): 
-        LogText(sprintf("%s %a\n", `Output variables:        `, y_functions), output_targets[log]): 
-        LogText(sprintf("%s %a\n", `Input variables:         `, u_functions), output_targets[log]): 
-        LogText(sprintf("%s %a\n", `Parameters in equations: `, mu), output_targets[log]): 
-        LogText(sprintf("===================\n\n"), output_targets[log]): 
-    end if:
+  if infolevel > 0 then
+    LogText(sprintf("\n===== Input info =====\n"), output_targets[log]): 
+    LogText(sprintf("%s %a\n", `State variables:         `, x_functions), output_targets[log]): 
+    LogText(sprintf("%s %a\n", `Output variables:        `, y_functions), output_targets[log]): 
+    LogText(sprintf("%s %a\n", `Input variables:         `, u_functions), output_targets[log]): 
+    LogText(sprintf("%s %a\n", `Parameters in equations: `, mu), output_targets[log]): 
+    LogText(sprintf("===================\n\n"), output_targets[log]): 
+  end if:
 
-    #----------------------------------------------
-    # 1. Construct the maximal system.
-    #----------------------------------------------
+  #----------------------------------------------
+  # 1. Construct the maximal system.
+  #----------------------------------------------
 
-    if infolevel > 0 then
-        PrintHeader("1. Constructing the maximal polynomial system"):
-    end if:
+  if infolevel > 0 then
+    PrintHeader("1. Constructing the maximal polynomial system"):
+  end if:
 
-    # (a) ---------------
-    n := nops(x_vars):
-    m := nops(y_vars):
-    s := nops(mu) + n:
-    all_params := [op(mu), op(map(x -> MakeDerivative(x, 0), x_vars ))]:
-    all_vars := [ op(x_vars), op(y_vars), op(u_vars) ]:
-    eqs := [op(x_eqs), op(y_eqs)]:
-    Q := foldl( (f, g) -> lcm(f, g), op( map(f -> denom(rhs(f)), eqs) )):
-
-
-    # (b,c) ---------------
-    X := []:
-    X_eq := []:
-    for i from 1 to n do
-        X := [op(X), []]:
-        poly := numer(lhs(x_eqs[i]) - rhs(x_eqs[i])):
-        for j from 0 to s + 1 do
-            poly_d := Differentiate(poly, all_vars, j):
-            leader := MakeDerivative(x_vars[i], j + 1):
-            separant := diff(poly_d, leader):
-            X[i] := [op(X[i]), poly_d]:
-            X_eq := [op(X_eq), leader = -(poly_d - separant * leader) / separant]:
-        end do:
-    end do:
-    # LogExpression(X[1]);
-
-    # (d,e) ---------------
-    Y := []:
-    Y_eq := []:
-    for i from 1 to m do
-        Y := [op(Y), []]:
-        poly := numer(lhs(y_eqs[i]) - rhs(y_eqs[i])):
-        for j from 0 to s + 1 do
-            poly_d := Differentiate(poly, all_vars, j):
-            leader := MakeDerivative(y_vars[i], j):
-            separant := diff(poly_d, leader):
-            Y[i] := [op(Y[i]), poly_d]:
-            Y_eq := [op(Y_eq), leader = -(poly_d - separant * leader) / separant]:
-        end do:
-    end do:
-
-
-    #----------------------------------------------
-    # 2. Truncate.
-    #----------------------------------------------
-
-    if infolevel > 0 then
-        PrintHeader("2. Truncating the polynomial system based on the Jacobian condition"):
-    end if:
-
-    # (a) ---------------
-    d0 := max(op( map(f -> degree( simplify(Q * rhs(f)) ), eqs) ), degree(Q)):
-
-    # (b) ---------------
-    # extra factor nops(theta) + 1 compared to the formula in the paper is to
-    # provide probability gaurantee to the local identifiability test
-    D1 := floor( (nops(theta) + 1) * 2 * d0 * s * (n + 1) * (1 + 2 * d0 * s) / (1 - p_local) ):
-    # prime := nextprime(D1):
-    if infolevel > 1 then
-        LogText(sprintf("%s %a\n", `Bound D_1 for testing the rank of the Jacobian probabilistically: `, D1), output_targets[log]);
-    end if:
-
-    # (c, d) ---------------
-    sample := SamplePoint(D1, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q):
-    all_subs := sample[4]:
-    u_hat := sample[2]:
-    y_hat := sample[1]:
-
-    # (e) ------------------
-    alpha := [seq(1, i = 1..n)]:
-    beta := [seq(0, i = 1..m)]:
-    Et := [];
-    # TODO: improve for arbitrary derivatives
-    x_theta_vars := all_params:
-    prolongation_possible := [seq(1, i = 1..m)]:
-
-    # (f) ------------------
-    while add(prolongation_possible) > 0 do
-        for i from 1 to m do
-            if prolongation_possible[i] = 1 then
-                eqs_i := [op(Et), Y[i][beta[i] + 1]]:
-                JacX := VectorCalculus[Jacobian](subs({op(u_hat), op(y_hat)}, eqs_i), x_theta_vars = subs(all_subs, x_theta_vars)):
-                if LinearAlgebra[Rank](JacX) = nops(eqs_i) then
-                    Et := [op(Et), Y[i][beta[i] + 1]]:
-                    beta[i] := beta[i] + 1:
-                    # adding necessary X-equations
-                    polys_to_process := [op(Et), seq(Y[k][beta[k] + 1], k=1..m)]:
-                    while nops(polys_to_process) <> 0 do
-                        new_to_process := []:
-                        vars := {};
-                        for poly in polys_to_process do
-                            vars := vars union { op(GetVars(poly, x_vars)) }:
-                        end do:
-                        vars_to_add := { op(remove(v -> evalb(v in x_theta_vars), vars)) };
-                        for v in vars_to_add do
-                            x_theta_vars := [op(x_theta_vars), v];
-                            ord_var := GetOrderVar(v);
-                            var_index := ListTools[Search](ord_var[1], x_vars):
-                            poly := X[ var_index ][ ord_var[2] ]:
-                            Et := [op(Et), poly]:
-                            new_to_process := [op(new_to_process), poly]:
-                            alpha[ var_index ] := max(alpha[ var_index ], ord_var[2] + 1):
-                        end do:
-                        polys_to_process := new_to_process:
-                    end do:
-                else
-                    prolongation_possible[i] := 0;
-                end if:
-            end if: 
-        end do:
-    end do:
-    # is used for assessing local identifiabilty
-    max_rank := nops(Et):
-
-    # (g) --------------
-    for i from 1 to m do
-        for j from beta[i] + 1 to nops(Y[i]) do
-            to_add := true:
-            for v in GetVars(Y[i][j], x_vars) do
-                if not (v in x_theta_vars) then
-                    to_add := false:
-                end if:
-            end do:
-            if to_add = true then
-                beta[i] := beta[i] + 1:
-                Et := [op(Et), Y[i][j]]:
-            end if:
-        end do:
-    end do:
- 
-    if infolevel > 1 then
-        LogText(sprintf("%s %a\n", `Orders of prolongations of the outputs (beta) = `, beta), output_targets[log]):
-        LogText(sprintf("%s %a\n", `Orders of prolongations of the state variables (alpha) = `, alpha), output_targets[log]):
-    end if:
-    ##############################
-
-    if infolevel > 0 then
-        PrintHeader("3. Assessing local identifiability"):
-    end if:
- 
-    theta_l := []:
-    for param in theta do
-        other_params := subs(param = NULL, x_theta_vars):
-        JacX := VectorCalculus[Jacobian]( 
-            subs( { op(u_hat), param = subs(all_subs, param), op(y_hat) }, Et), 
-            other_params = subs(all_subs, other_params)
-        ):
-        if LinearAlgebra[Rank](JacX) <> max_rank then
-            theta_l := [op(theta_l), param]:
-        end if:
-    end do:
- 
-    if infolevel > 1 then
-        LogText(sprintf("%s %a\n", `Locally identifiable paramters: `, map(x -> ParamToOuter(x, all_vars), theta_l)), output_targets[log]);
-        LogText(sprintf("%s %a\n", `Nonidentifiable parameter: `, map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})])), output_targets[log]);
-    end if:
-
-    DocumentTools:-SetProperty(output_targets[localparams], expression, map(x -> ParamToOuter(x, all_vars), theta_l), 'refresh'): # local
-    DocumentTools:-SetProperty(output_targets[noidparams], expression, map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})]), 'refresh'): # no id
+  # (a) ---------------
+  n := nops(x_vars):
+  m := nops(y_vars):
+  s := nops(mu) + n:
+  all_params := [op(mu), op(map(x -> MakeDerivative(x, 0), x_vars ))]:
+  all_vars := [ op(x_vars), op(y_vars), op(u_vars) ]:
+  eqs := [op(x_eqs), op(y_eqs)]:
+  Q := foldl( (f, g) -> lcm(f, g), op( map(f -> denom(rhs(f)), eqs) )):
   
-    #----------------------------------------------
-    # 3. Randomize.
-    #----------------------------------------------
 
-    if infolevel > 0 then
-        PrintHeader("4. Randomizing the truncated system"):
-    end if:
-
-    # (a) ------------
-    deg_variety := foldl(`*`, op( map(e -> degree(e), Et) )):
-    D2 := floor( 6 * nops(theta_l) * deg_variety * (1 + 2 * d0 * max(op(beta))) / (1 - p_local) ):
-    if infolevel > 1 then
-        LogText(sprintf("%s %a\n", `Bound D_2 for assessing global identifiability: `, D2), output_targets[log]):
-    end if:
-
-    # (b, c) ---------
-    sample := SamplePoint(D2, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q):
-    y_hat := sample[1]:
-    u_hat := sample[2]:
-    theta_hat := sample[3]:
-    if infolevel > 1 then
-        LogText(sprintf("%s %a\n", `Random sample for the outputs and inputs is generated from `, theta_hat), output_targets[log]):
-    end if:
-
-    # (d) ------------
-    Et_hat := map(e -> subs([op(y_hat), op(u_hat)], e), Et):
-    Et_x_vars := {}:
-    for poly in Et_hat do
-        Et_x_vars := Et_x_vars union { op(GetVars(poly, x_vars)) }:
+  # (b,c) ---------------
+  X := []:
+  X_eq := []:
+  for i from 1 to n do
+    X := [op(X), []]:
+    poly := numer(lhs(x_eqs[i]) - rhs(x_eqs[i])):
+    for j from 0 to s + 1 do
+      poly_d := Differentiate(poly, all_vars, j):
+      leader := MakeDerivative(x_vars[i], j + 1):
+      separant := diff(poly_d, leader):
+      X[i] := [op(X[i]), poly_d]:
+      X_eq := [op(X_eq), leader = -(poly_d - separant * leader) / separant]:
     end do:
-    # if infolevel > 1 then
-    #   LogText("%s %a %s %a %s\n", `The polynomial system \widehat{E^t} contains `, nops(Et_hat), `equations in `, nops(Et_x_vars) + nops(mu), ` variables`);
-    # end if:
-    Q_hat := subs(u_hat, Q):
+  end do:
+  # LogExpression(X[1]);
+  
+  # (d,e) ---------------
+  Y := []:
+  Y_eq := []:
+  for i from 1 to m do
+    Y := [op(Y), []]:
+    poly := numer(lhs(y_eqs[i]) - rhs(y_eqs[i])):
+    for j from 0 to s + 1 do
+      poly_d := Differentiate(poly, all_vars, j):
+      leader := MakeDerivative(y_vars[i], j):
+      separant := diff(poly_d, leader):
+      Y[i] := [op(Y[i]), poly_d]:
+      Y_eq := [op(Y_eq), leader = -(poly_d - separant * leader) / separant]:
+    end do:
+  end do:
 
-    vars := [
-        op(sort([op(Et_x_vars)], (a, b) -> CompareDiffVar(a, b, x_vars))),
-        z_aux, w_aux,
-        op(sort(mu))
-    ]:
-    if infolevel > 1 then
-        LogText(sprintf("Variable ordering to be used for Groebner basis computation %a\n", vars), output_targets[log]);
+
+  #----------------------------------------------
+  # 2. Truncate.
+  #----------------------------------------------
+
+  if infolevel > 0 then
+    PrintHeader("2. Truncating the polynomial system based on the Jacobian condition"):
+  end if:
+
+  # (a) ---------------
+  d0 := max(op( map(f -> degree( simplify(Q * rhs(f)) ), eqs) ), degree(Q)):
+
+  # (b) ---------------
+  # extra factor nops(theta) + 1 compared to the formula in the paper is to
+  # provide probability gaurantee to the local identifiability test
+  D1 := floor( (nops(theta) + 1) * 2 * d0 * s * (n + 1) * (1 + 2 * d0 * s) / (1 - p_local) ):
+  # prime := nextprime(D1):
+  if infolevel > 1 then
+    LogText(sprintf("%s %a\n", `Bound D_1 for testing the rank of the Jacobian probabilistically: `, D1), output_targets[log]);
+  end if:
+
+  # (c, d) ---------------
+  sample := SamplePoint(D1, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q):
+  all_subs := sample[4]:
+  u_hat := sample[2]:
+  y_hat := sample[1]:
+ 
+  # (e) ------------------
+  alpha := [seq(1, i = 1..n)]:
+  beta := [seq(0, i = 1..m)]:
+  Et := [];
+  # TODO: improve for arbitrary derivatives
+  x_theta_vars := all_params:
+  prolongation_possible := [seq(1, i = 1..m)]:
+
+  # (f) ------------------
+  while add(prolongation_possible) > 0 do
+    for i from 1 to m do
+      if prolongation_possible[i] = 1 then
+        eqs_i := [op(Et), Y[i][beta[i] + 1]]:
+        JacX := VectorCalculus[Jacobian](subs({op(u_hat), op(y_hat)}, eqs_i), x_theta_vars = subs(all_subs, x_theta_vars)):
+        if LinearAlgebra[Rank](JacX) = nops(eqs_i) then
+          Et := [op(Et), Y[i][beta[i] + 1]]:
+          beta[i] := beta[i] + 1:
+          # adding necessary X-equations
+          polys_to_process := [op(Et), seq(Y[k][beta[k] + 1], k=1..m)]:
+          while nops(polys_to_process) <> 0 do
+            new_to_process := []:
+            vars := {};
+            for poly in polys_to_process do
+              vars := vars union { op(GetVars(poly, x_vars)) }:
+            end do:
+            vars_to_add := { op(remove(v -> evalb(v in x_theta_vars), vars)) };
+            for v in vars_to_add do
+              x_theta_vars := [op(x_theta_vars), v];
+              ord_var := GetOrderVar(v);
+              var_index := ListTools[Search](ord_var[1], x_vars):
+              poly := X[ var_index ][ ord_var[2] ]:
+              Et := [op(Et), poly]:
+              new_to_process := [op(new_to_process), poly]:
+              alpha[ var_index ] := max(alpha[ var_index ], ord_var[2] + 1):
+            end do:
+            polys_to_process := new_to_process:
+          end do:
+        else
+          prolongation_possible[i] := 0;
+        end if:
+      end if: 
+    end do:
+  end do:
+  # is used for assessing local identifiabilty
+  max_rank := nops(Et):
+
+  # (g) --------------
+  for i from 1 to m do
+    for j from beta[i] + 1 to nops(Y[i]) do
+      to_add := true:
+      for v in GetVars(Y[i][j], x_vars) do
+        if not (v in x_theta_vars) then
+          to_add := false:
+        end if:
+      end do:
+      if to_add = true then
+        beta[i] := beta[i] + 1:
+        Et := [op(Et), Y[i][j]]:
+      end if:
+    end do:
+  end do:
+ 
+  if infolevel > 1 then
+    LogText(sprintf("%s %a\n", `Orders of prolongations of the outputs (beta) = `, beta), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Orders of prolongations of the state variables (alpha) = `, alpha), output_targets[log]):
+  end if:
+  ##############################
+
+  if infolevel > 0 then
+    PrintHeader("3. Assessing local identifiability"):
+  end if:
+ 
+  theta_l := []:
+  for param in theta do
+    other_params := subs(param = NULL, x_theta_vars):
+    JacX := VectorCalculus[Jacobian]( 
+        subs( { op(u_hat), param = subs(all_subs, param), op(y_hat) }, Et), 
+        other_params = subs(all_subs, other_params)
+    ):
+    if LinearAlgebra[Rank](JacX) <> max_rank then
+      theta_l := [op(theta_l), param]:
     end if:
+  end do:
+ 
+  if infolevel > 1 then
+    LogText(sprintf("%s %a\n", `Locally identifiable paramters: `, map(x -> ParamToOuter(x, all_vars), theta_l)), output_targets[log]);
+    LogText(sprintf("%s %a\n", `Nonidentifiable parameter: `, map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})])), output_targets[log]);
+  end if:
 
-    #----------------------------------------------
-    # 4. Determine.
-    #----------------------------------------------
+  DocumentTools:-SetProperty(output_targets[localparams], expression, map(x -> ParamToOuter(x, all_vars), theta_l), 'refresh'): # local
+  DocumentTools:-SetProperty(output_targets[noidparams], expression, map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})]), 'refresh'): # no id
 
-    if infolevel > 0 then
-        PrintHeader("5. Assessing global identifiability"):
-    end if:
+  #----------------------------------------------
+  # 3. Randomize.
+  #----------------------------------------------
 
-    theta_g := []:
-    if method = 1 then
-        at_node := proc(var, args_node)
-        local gb_loc, fname;
-        gb_loc := Groebner[Basis](op(args_node)):
-        gb_loc;
+  if infolevel > 0 then
+    PrintHeader("4. Randomizing the truncated system"):
+  end if:
+
+  # (a) ------------
+  deg_variety := foldl(`*`, op( map(e -> degree(e), Et) )):
+  D2 := floor( 6 * nops(theta_l) * deg_variety * (1 + 2 * d0 * max(op(beta))) / (1 - p_local) ):
+  if infolevel > 1 then
+    LogText(sprintf("%s %a\n", `Bound D_2 for assessing global identifiability: `, D2), output_targets[log]):
+  end if:
+
+  # (b, c) ---------
+  sample := SamplePoint(D2, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q):
+  y_hat := sample[1]:
+  u_hat := sample[2]:
+  theta_hat := sample[3]:
+  if infolevel > 1 then
+    LogText(sprintf("%s %a\n", `Random sample for the outputs and inputs is generated from `, theta_hat), output_targets[log]):
+  end if:
+
+  # (d) ------------
+  Et_hat := map(e -> subs([op(y_hat), op(u_hat)], e), Et):
+  Et_x_vars := {}:
+  for poly in Et_hat do
+    Et_x_vars := Et_x_vars union { op(GetVars(poly, x_vars)) }:
+  end do:
+ # if infolevel > 1 then
+ #   LogText("%s %a %s %a %s\n", `The polynomial system \widehat{E^t} contains `, nops(Et_hat), `equations in `, nops(Et_x_vars) + nops(mu), ` variables`);
+ # end if:
+  Q_hat := subs(u_hat, Q):
+
+  vars := [
+    op(sort([op(Et_x_vars)], (a, b) -> CompareDiffVar(a, b, x_vars))),
+    z_aux, w_aux,
+    op(sort(mu))
+  ]:
+  if infolevel > 1 then
+    LogText(sprintf("Variable ordering to be used for Groebner basis computation %a\n", vars), output_targets[log]);
+  end if:
+ 
+  #----------------------------------------------
+  # 4. Determine.
+  #----------------------------------------------
+
+  if infolevel > 0 then
+    PrintHeader("5. Assessing global identifiability"):
+  end if:
+
+  theta_g := []:
+  if method = 1 then
+    at_node := proc(var, args_node)
+      local gb_loc, fname;
+      gb_loc := Groebner[Basis](op(args_node)):
+      gb_loc;
     end proc:
 
     if nops(theta_l) > 1 and num_nodes > 1 then
-        Grid[Setup]("local", numnodes = num_nodes):
-        Grid[Set](at_node):
-        gb := Grid[Seq](
+      Grid[Setup]("local", numnodes = num_nodes):
+      Grid[Set](at_node):
+      gb := Grid[Seq](
         at_node(theta_l[i], [
-            [op(Et_hat), z_aux * Q_hat - 1, (theta_l[i] - subs(theta_hat, theta_l[i])) * w_aux - 1],
-            tdeg(vars)
-            ]),
-            i = 1..nops(theta_l)
-        ):
+          [op(Et_hat), z_aux * Q_hat - 1, (theta_l[i] - subs(theta_hat, theta_l[i])) * w_aux - 1],
+          tdeg(vars)
+        ]),
+        i = 1..nops(theta_l)
+      ):
     else
-        gb := []:
-        for i from 1 to nops(theta_l) do
-            gb := [
-            op(gb), 
-            at_node(
-                    theta_l[i], 
-                    [[op(Et_hat), z_aux * Q_hat - 1, (theta_l[i] - subs(theta_hat, theta_l[i])) * w_aux - 1], tdeg(op(vars))]
-                ) 
-            ]:
-        end do:
+      gb := []:
+      for i from 1 to nops(theta_l) do
+        gb := [
+          op(gb), 
+          at_node(
+            theta_l[i], 
+            [[op(Et_hat), z_aux * Q_hat - 1, (theta_l[i] - subs(theta_hat, theta_l[i])) * w_aux - 1], tdeg(op(vars))]
+           ) 
+        ]:
+      end do:
     end if:
 
     for i from 1 to nops(theta_l) do
-        if gb[i] = [1] then
-            theta_g := [op(theta_g), theta_l[i]]:
-        else
-            if infolevel > 1 then
-                LogText(sprintf("%s %a %s %a\n", `Groebner basis corresponding to the parameter `, theta_l[i], ` is `, gb[i]), output_targets[log]):
-            end if:
+      if gb[i] = [1] then
+        theta_g := [op(theta_g), theta_l[i]]:
+      else
+        if infolevel > 1 then
+          LogText(sprintf("%s %a %s %a\n", `Groebner basis corresponding to the parameter `, theta_l[i], ` is `, gb[i]), output_targets[log]):
         end if:
+      end if:
     end do:    
-    elif method = 2 then
-        gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)));
-        for i from 1 to nops(theta_l) do
-            if Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars))) = subs(theta_hat, theta_l[i]) then
-                theta_g := [ op(theta_g), theta_l[i] ]:
-            end if:
-        end do:
-    elif method = 3 then
-        R := RegularChains[PolynomialRing](vars):
-        for i from 1 to nops(theta_l) do
-            tr := [RegularChains[Triangularize](Et_hat, [Q_hat, theta_l[i] - subs(theta_hat,theta_l[i])], R)]:
-            for e in tr do
-                LogExpression(sprintf("%q\n", RegularChains[Equations](e, R)), output_targets[log]):
-            end do:
-        end do:
-    else
-        LogText(sprintf(`No such method`), output_targets[log]):
-        LogText(sprintf("%q\n", "Provided method: %d, allowed methods: 1, 2", method), output_targets[log]):
-    end if:
-
-    if infolevel > 0 then
-        LogText(sprintf("\n=== Summary ===\n"), output_targets[log]):
-        LogText(sprintf("%s %a\n", `Globally identifiable parameters:                 `, map(x -> ParamToOuter(x, all_vars), theta_g)), output_targets[log]):
-        LogText(sprintf("%s %a\n", `Locally but not globally identifiable parameters: `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l))), output_targets[log]):
-        LogText(sprintf("%s %a\n", `Not identifiable parameters:                      `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta))), output_targets[log]):
-        LogText(sprintf("===============\n\n"), output_targets[log]):
-    end if:
-    out_sian := table([
-        globally = [op(map(x -> ParamToOuter(x, all_vars), theta_g))],
-        locally_not_globally = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))},
-        non_identifiable = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta)))},
-        parameters = mu,
-        basis=gb,
-        varordering=tdeg(op(vars)),
-        allvars=vars,
-        for_outer=all_vars
-    ]):
-    LogParameters("",output_targets[parameters]):
-    for var in map(ParamToInner, out_sian[globally]) do
-        LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, 1), output_targets[log]):
-        LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, out_sian[for_outer]), `, number of solutions: `, 1), output_targets[parameters]):
+  elif method = 2 then
+    gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)));
+    
+    for i from 1 to nops(theta_l) do
+      if Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars))) = subs(theta_hat, theta_l[i]) then
+        theta_g := [ op(theta_g), theta_l[i] ]:
+      end if:
     end do:
 
-    for var in map(ParamToInner, out_sian[locally_not_globally]) do
-        G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var])):
-        P := select(x->evalb(indets(x)={var}), G):
-        LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
-        LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, out_sian[for_outer]), `, number of solutions: `, degree(P[1], [op(indets(P))])),  output_targets[parameters])
+    if count_solutions then
+     LogParameters("",output_targets[parameters]):
+    	for var in theta_g do
+ 		LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, 1), output_targets[log]):
+		LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `, number of solutions: `, 1), output_targets[parameters]):
+		solutions_table[var]:=1:
+    	end do:
+	
+    	for var in select(p -> not p in theta_g, theta_l) do
+		G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var])):
+		P := select(x->evalb(indets(x)={var}), G):
+		solutions_table[var]:=degree(P[1], [op(indets(P))]): 
+		LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
+		LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `, number of solutions: `, degree(P[1], [op(indets(P))])),  output_targets[parameters])
+    	end do:
+     fi:
+     
+    	DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
+  
+  elif method = 3 then
+    R := RegularChains[PolynomialRing](vars):
+    for i from 1 to nops(theta_l) do
+      tr := [RegularChains[Triangularize](Et_hat, [Q_hat, theta_l[i] - subs(theta_hat,theta_l[i])], R)]:
+      for e in tr do
+        LogExpression(sprintf("%q\n", RegularChains[Equations](e, R)), output_targets[log]):
+      end do:
     end do:
+  else
+    LogText(sprintf(`No such method`), output_targets[log]):
+    LogText(sprintf("%q\n", "Provided method: %d, allowed methods: 1, 2", method), output_targets[log]):
+  end if:
 
-    DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
-
-    return out_sian;
+  if infolevel > 0 then
+    LogText(sprintf("\n=== Summary ===\n"), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Globally identifiable parameters:                 `, map(x -> ParamToOuter(x, all_vars), theta_g)), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Locally but not globally identifiable parameters: `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l))), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Not identifiable parameters:                      `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta))), output_targets[log]):
+    LogText(sprintf("===============\n\n"), output_targets[log]):
+  end if:
+  out_sian := table([
+    globally = [op(map(x -> ParamToOuter(x, all_vars), theta_g))],
+    locally_not_globally = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))},
+    non_identifiable = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta)))},
+    parameters = mu,
+    basis=gb,
+    varordering=tdeg(op(vars)),
+    allvars=vars,
+    for_outer=all_vars
+  ]):
+  PrintHeader("WARNING: The result of solution counting is guaranteed with high probability, however it NOT the same probability 'p' as provided in the input."):
+  out_sian[num_solutions] := solutions_table:
+  return out_sian;
 end proc:
 
 #===============================================================================
@@ -1324,170 +1337,162 @@ end proc:
 examples := table([  
   	"Biohydrogenation" = [ "Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\n Review: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (3) in Supplementary Material 2, initail conditions are assumed to be unknown",
   	[
-  diff(x4(t), t) = - k5 * x4(t) / (k6 + x4(t)),
-  diff(x5(t), t) = k5 * x4(t) / (k6 + x4(t)) - k7 * x5(t)/(k8 + x5(t) + x6(t)),
-  diff(x6(t), t) = k7 * x5(t) / (k8 + x5(t) + x6(t)) - k9 * x6(t) * (k10 - x6(t)) / k10,
-  diff(x7(t), t) = k9 * x6(t) * (k10 - x6(t)) / k10,
-  y1(t) = x4(t),
-  y2(t) = x5(t)], [], ['p'=0.999] ],
+  "dx4/dt = - k5 * x4 / (k6 + x4);\n",
+  "dx5/dt = k5 * x4 / (k6 + x4) - k7 * x5/(k8 + x5 + x6);\n",
+  "dx6/dt = k7 * x5 / (k8 + x5 + x6) - k9 * x6 * (k10 - x6) / k10;\n",
+  "dx7/dt = k9 * x6 * (k10 - x6) / k10;\n",
+  "y1 = x4;\n",
+  "y2 = x5"]],
 
-  	"ChemicalReactionNetwork" = ["Example 6.1 in the paper 'Global Identifiability of Differential Models'\nTaken from  Conradi, C., Shiu, A., Dynamics of post-translational modification systems: recent progress and future directions Eq. 3.4)",
-[
-  diff(x1(t), t) = -k1 * x1(t) * x2(t) + k2 * x4(t) + k4 * x6(t),
-  diff(x2(t), t) = k1 * x1(t) * x2(t) + k2 * x4(t) + k3 * x4(t),
-  diff(x3(t), t) = k3 * x4(t) + k5 * x6(t) - k6 * x3(t) * x5(t),
-  diff(x4(t), t) = k1 * x1(t) * x2(t) - k2 * x4(t) - k3 * x4(t),
-  diff(x5(t), t) = k4 * x6(t) + k5 * x6(t) - k6 * x3(t) * x5(t),
-  diff(x6(t), t) = -k4 * x6(t) - k5 * x6(t) + k6 * x3(t) * x5(t),
-  y1(t) = x3(t),
-  y2(t) = x2(t)
-], [] ],
+  	"Chemical Reaction Network" = ["Example 6.1 in the paper 'Global Identifiability of Differential Models'\nTaken from  Conradi, C., Shiu, A., Dynamics of post-translational modification systems: recent progress and future directions Eq. 3.4)",
+	[
+  "dx1/dt = -k1 * x1 * x2 + k2 * x4 + k4 * x6;\n",
+  "dx2/dt = k1 * x1 * x2 + k2 * x4 + k3 * x4;\n",
+  "dx3/dt = k3 * x4 + k5 * x6 - k6 * x3 * x5;\n",
+  "dx4/dt = k1 * x1 * x2 - k2 * x4 - k3 * x4;\n",
+  "dx5/dt = k4 * x6 + k5 * x6 - k6 * x3 * x5;\n",
+  "dx6/dt = -k4 * x6 - k5 * x6 + k6 * x3 * x5;\n",
+  "y1 = x3;\n"
+  "y2 = x2;\n" ]],
 
-	"DAISY_ex3" = ["DAISY Example 3", [
-  diff(x1(t), t) = -1 * p1 * x1(t) + x2(t) + u0(t),
-  diff(x2(t), t) = p3 * x1(t) - p4 * x2(t) + x3(t),
-  diff(x3(t), t) = p6 * x1(t) - p7 * x3(t),
-  diff(u0(t), t) = 1,
-  y(t) = x1(t),
-  y2(t) = u0(t)], [] ],
+	"DAISY Ex. 3" = ["DAISY Example 3", [
+  "dx1/dt = -1 * p1 * x1 + x2 + u0;\n",
+  "dx2/dt = p3 * x1 - p4 * x2 + x3;\n",
+  "dx3/dt = p6 * x1 - p7 * x3;\n",
+  "du0/dt = 1;\n",
+  "y = x1;\n",
+  "y2 = u0;\n"]],
 
 	"DAISY_mamil3" = ["DAISY mamil 3",
 	[
-  diff(x1(t), t) = -(a21 + a31 + a01) * x1(t) + a12 * x2(t) + a13 * x3(t) + u(t),
-  diff(x2(t), t) = a21 * x1(t) - a12 * x2(t),
-  diff(x3(t), t) = a31 * x1(t) - a13 * x3(t),
-  y(t) = x1(t)], [] ],
+  "dx1/dt = -(a21 + a31 + a01) * x1 + a12 * x2 + a13 * x3 + u(t);\n",
+  "dx2/dt = a21 * x1 - a12 * x2;\n",
+  "dx3/dt = a31 * x1 - a13 * x3;\n",
+  "y = x1"]],
   
 	"DAISY_mamil4" = ["DAISY mamil 4", [
-  diff(x1(t), t) = -k01 * x1(t) + k12 * x2(t) + k13 * x3(t) + k14 * x4(t) - k21 * x1(t) - k31 * x1(t) - k41 * x1(t) + u(t),
-  diff(x2(t), t) = -k12 * x2(t) + k21 * x1(t),
-  diff(x3(t), t) = -k13 * x3(t) + k31 * x1(t),
-  diff(x4(t), t) = -k14 * x4(t) + k41 * x1(t),
-  y(t) = x1(t)], [] ],
+  "dx1/dt = -k01 * x1 + k12 * x2 + k13 * x3 + k14 * x4 - k21 * x1 - k31 * x1 - k41 * x1 + u(t);\n",
+  "dx2/dt = -k12 * x2 + k21 * x1;\n",
+  "dx3/dt = -k13 * x3 + k31 * x1;\n",
+  "dx4/dt = -k14 * x4 + k41 * x1;\n",
+  "y = x1"]],
 
 	"HIV" = ["Example (with initial conditions assumed being unknown) from Section IV of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies' by G. Bellu, M.P. Saccomani",
 	[
-  diff(x1(t), t) = -beta * x1(t) * x4(t) - d * x1(t) + s,
-  diff(x2(t), t) = beta * q1 * x1(t) * x4(t) - k1 * x2(t) - mu1 * x2(t),
-  diff(x3(t), t) = beta * q2 * x1(t) * x4(t) + k1 * x2(t) - mu2 * x3(t),
-  diff(x4(t), t) = -c * x4(t) + k2 * x3(t),
-  y1(t) = x1(t),
-  y2(t) = x4(t)], []],
+  "dx1/dt = -beta * x1 * x4 - d * x1 + s;\n",
+  "dx2/dt = beta * q1 * x1 * x4 - k1 * x2 - mu1 * x2;\n",
+  "dx3/dt = beta * q2 * x1 * x4 + k1 * x2 - mu2 * x3;\n",
+  "dx4/dt = -c * x4 + k2 * x3;\n",
+  "y1 = x1;\n",
+  "y2 = x4"]],
 
 	"HIV2" = ["The system is taken from Wodarz, D., Nowak, M.\nMathematical models of HIV pathogenesis and treatment\nSystem (6)",
 	[
-  diff(x(t), t) = lm - d * x(t) - beta * x(t) * v(t),
-  diff(y(t), t) = beta * x(t) * v(t) - a * y(t),
-  diff(v(t), t) = k * y(t) - u * v(t),
-  diff(w(t), t) = c * z(t) * y(t) * w(t) - c * q * y(t) * w(t) - b * w(t),
-  diff(z(t), t) = c * q * y(t) * w(t) - h * z(t),
-  y1(t) = w(t),
-  y2(t) = z(t)], []],
+  "dx/dt = lm - d * x - beta * x * v;\n",
+  "dy/dt = beta * x * v - a * y;\n",
+  "dv/dt = k * y - u * v;\n",
+  "dw/dt = c * z * y * w - c * q * y * w - b * w;\n",
+  "dz/dt = c * q * y * w - h * z;\n",
+  "y1 = w;\n",
+  "y2 = z"]],
 
-	"Lipolysis" = ["Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\nReview: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (1) in Supplementary Material 2, initial conditions are assumed to be unknown\nbrought to the rational function form by introducing new state variable x5(t) = k1 e^(-k3 t)",
+	"Lipolysis" = ["Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\nReview: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (1) in Supplementary Material 2, initial conditions are assumed to be unknown\nbrought to the rational function form by introducing new state variable x5 = k1 e^(-k3 t)",
 	[
-  diff(x1(t), t) = -x1(t) * x5(t) / (k2 + x1(t)),
-  diff(x2(t), t) = 2 * x1(t) * x5(t) / ((k2 + x1(t)) * 3) - k4 * x2(t),
-  diff(x3(t), t) = k4*(x2(t))/2 - k4*x3(t),
-  diff(x4(t), t) = x1(t) * x5(t) / (3 * (k2 + x1(t))) + k4 * (x2(t))/2 + k4 * x3(t),
-  diff(x5(t), t) = -k3 * x5(t),
-  y1(t) = x1(t),
-  y2(t) = x2(t) + x3(t),
-  y3(t) = x4(t)],[]],
+  "dx1/dt = -x1 * x5 / (k2 + x1);\n",
+  "dx2/dt = 2 * x1 * x5 / ((k2 + x1) * 3) - k4 * x2;\n",
+  "dx3/dt = k4*(x2)/2 - k4*x3;\n",
+  "dx4/dt = x1 * x5 / (3 * (k2 + x1)) + k4 * (x2)/2 + k4 * x3;\n",
+  "dx5/dt = -k3 * x5;\n",
+  "y1 = x1;\n",
+  "y2 = x2 + x3;\n",
+  "y3 = x4"]],
 
-  	"LV" = ["",[diff(x1(t), t) = a*x1(t) - b*x1(t)*x2(t), diff(x2(t), t) = -c*x2(t) + d*x1(t)*x2(t), y(t) = x1(t) + u(t)],
-[a, b, c, d, x1(0), x2(0)]],
+  	"LV" = ["",[
+  	"dx1/dt = a*x1 - b*x1*x2;\n", 
+  	"dx2/dt = -c*x2 + d*x1*x2;\n",
+  	"y = x1 + u(t);\n"]],
 	"OralGlucose" = ["Example (with initial conditions assumed being unknown) from Section III of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies'\nby G. Bellu, M.P. Saccomani",
 	[
-  diff(G(t), t) = -(p1 + X(t)) * G(t) + p1 * Gb(t) + v * R(t),
-  diff(X(t), t) = -p2 * X(t) + p3 * (u(t) - Ib(t)),
-  diff(R(t), t) = k,
-  diff(Ib(t), t) = 0,
-  diff(Gb(t), t) = 0,
-  y1(t) = G(t),
-  y2(t) = Ib(t),
-  y3(t) = Gb(t)],[]],
+  "dG/dt = -(p1 + X) * G + p1 * Gb + v * R;\n",
+  "dX/dt = -p2 * X + p3 * (u(t) - Ib);\n",
+  "dR/dt = k;\n",
+  "dIb/dt = 0;\n",
+  "dGb/dt = 0;\n",
+  "y1 = G;\n",
+  "y2 = Ib;\n",
+  "y3 = Gb;\n"]],
 
 	"SEIR" = ["Taken from N. Tuncer, T. Le\n'Structural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.2) with prevalence observations",
 [
-  diff(S(t), t) = -b * S(t) * In(t) / N(t),
-  diff(E(t), t) = b * S(t) * In(t) / N(t) - nu * E(t),
-  diff(In(t), t) = nu * E(t) - a * In(t),
-  diff(N(t), t) = 0,
-  y1(t) = In(t),
-  y2(t) = N(t)
-],[]],
+  "dS/dt = -b * S * In / N;\n",
+  "dE/dt = b * S * In / N - nu * E;\n",
+  "dIn/dt = nu * E - a * In;\n",
+  "dN/dt = 0;\n",
+  "y1 = In;\n",
+  "y2 = N;\n"]],
 
 	"SEIR2" = ["Taken from N. Tuncer, T. Le\n'Structural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.2) with cumulative incidence observations",
 	[
-  diff(S(t), t) = -b * S(t) * In(t) / N(t),
-  diff(E(t), t) = b * S(t) * In(t) / N(t) - nu * E(t),
-  diff(In(t), t) = nu * E(t) - a * In(t),
-  diff(N(t), t) = 0,
-  diff(Cu(t), t) = nu * E(t),
-  y1(t) = Cu(t),
-  y2(t) = N(t)
-],[]],
+  "dS/dt = -b * S * In / N;\n",
+  "dE/dt = b * S * In / N - nu * E;\n",
+  "dIn/dt = nu * E - a * In;\n",
+  "dN/dt = 0;\n",
+  "dCu/dt = nu * E;\n",
+  "y1 = Cu;\n",
+  "y2 = N"]],
 
 	"SIR_R0" = ["SIR R0",[
-  diff(S(t), t) = -b * In(t) * S(t),
-  diff(In(t), t) = b * In(t) * S(t) - g * In(t),
-  diff(R(t), t) = g * In(t),
-  diff(aux(t), t) = 0,
-  y1(t) = In(t),
-  y2(t) = b / g + aux(t)
-],[],['infolevel'=3]],
+  "dS/dt = -b * In * S;\n",
+  "dIn/dt = b * In * S - g * In;\n",
+  "dR/dt = g * In;\n",
+  "daux/dt = 0;\n",
+  "y1 = In;\n",
+  "y2 = b / g + aux;"]],
 
 	"SIRSForced" = ["Taken from Capistran M., Moreles M., Lara B.\n'Parameter Estimation of Some Epidemic Models.\n The Case of Recurrent Epidemics Caused by Respiratory Syncytial Virus'\ndoi.org/10.1007/s11538-009-9429-3\nEquations (7)-(11)",
 [
-  diff(s(t), t) = mu - mu * s(t) - b0 * (1 + b1 * x1(t)) * i(t) * s(t) + g * r(t),
-  diff(i(t), t) = b0 * (1 + b1 * x1(t)) * i(t) * s(t) - (nu + mu) * i(t),
-  diff(r(t), t) = nu * i(t) - (mu + g) * r(t),
-  diff(x1(t), t) = -M * x2(t),
-  diff(x2(t), t) = M * x1(t),
-  y1(t) = i(t),
-  y2(t) = r(t)
-]
-,[]],
+  "ds/dt = mu - mu * s - b0 * (1 + b1 * x1) * i * s + g * r;\n",
+  "di/dt = b0 * (1 + b1 * x1) * i * s - (nu + mu) * i;\n",
+  "dr/dt = nu * i - (mu + g) * r;\n",
+  "dx1/dt = -M * x2;\n",
+  "dx2/dt = M * x1;\n",
+  "y1 = i;\n",
+  "y2 = r;\n"]],
 
 	"SlowFast" = ["Taken from Vajda S., Rabitz H.\n'Identifiability and Distinguishability of First-Order Reaction Systems', p. 701\nWe added an extra output x_C",
 	[
-  diff(xA(t), t) = -k1 * xA(t),
-  diff(xB(t), t) = k1 * xA(t) - k2 * xB(t),
-  diff(xC(t), t) = k2 * xB(t),
-  diff(eA(t), t) = 0,
-  diff(eC(t), t) = 0,
-  y1(t) = eA(t) * xA(t) + eB * xB(t) + eC(t) * xC(t),
-  y2(t) = xC(t),
-  y3(t) = eA(t),
-  y4(t) = eC(t)
-],[]],
+  "dxA/dt = -k1 * xA;\n",
+  "dxB/dt = k1 * xA - k2 * xB;\n",
+  "dxC/dt = k2 * xB;\n",
+  "deA/dt = 0;\n",
+  "deC/dt = 0;\n",
+  "y1 = eA * xA + eB * xB + eC * xC;\n",
+  "y2 = xC;\n",
+  "y3 = eA;\n",
+  "y4 = eC"]],
 	
 	"Treatment" = ["Taken from N. Tuncer, T. Le\nStructural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.3) with observed treatment",
 	[
-  diff(S(t), t) = -b * S(t) * In(t) / N(t) - d * b * S(t) * Tr(t) / N(t),
-  diff(In(t), t) = b * S(t) * In(t) / N(t) + d * b * S(t) * Tr(t) / N(t) - (a + g) * In(t),
-  diff(Tr(t), t) = g * In(t) - nu * Tr(t),
-  diff(N(t), t) = 0,
-  y1(t) = Tr(t),
-  y2(t) = N(t)
-],[]],
+  "dS/dt = -b * S * In / N - d * b * S * Tr / N;\n",
+  "dIn/dt = b * S * In / N + d * b * S * Tr / N - (a + g) * In;\n",
+  "dTr/dt = g * In - nu * Tr;\n",
+  "dN/dt = 0;\n",
+  "y1 = Tr;\n",
+  "y2 = N"]],
 
 	"Tumor" = ["Example (with initial conditions assumed being unknown) from Section 3 of\n'Examples of testing global identifiability of biological and biomedical models with the DAISY software'\nby M.P. Saccomani, S. Audoly, G. Bellu, L. D'Angio",
-[ diff(x1(t), t) = -(k3 + k7) * x1(t) + k4 * x2(t),
-  diff(x2(t), t) = k3 * x1(t) - (k4 + a(t) * k5 + b(t) * d(t) * k5) * x2(t) + k6 * x3(t) + k6 * x4(t) + k5 * x2(t) * x3(t) + k5 * x2(t) * x4(t),
-  diff(x3(t), t) = a(t) * k5 * x2(t) - k6 * x3(t) - k5 * x2(t) * x3(t),
-  diff(x4(t), t) = b(t) * d(t) * k5 * x2(t) - k6 * x4(t) - k5 * x2(t) * x4(t),
-  diff(x5(t), t) = k7 * x1(t),
-  diff(a(t), t) = 0,
-  diff(b(t), t) = 0,
-  diff(d(t), t) = 0,
-  y1(t) = x5(t),
-  y2(t) = a(t),
-  y3(t) = b(t),
-  y4(t) = d(t)], []],
-	
-	NULL
+[ "dx1/dt = -(k3 + k7) * x1 + k4 * x2;\n",
+  "dx2/dt = k3 * x1 - (k4 + a * k5 + b * d * k5) * x2 + k6 * x3 + k6 * x4 + k5 * x2 * x3 + k5 * x2 * x4;\n",
+  "dx3/dt = a * k5 * x2 - k6 * x3 - k5 * x2 * x3;\n",
+  "dx4/dt = b * d * k5 * x2 - k6 * x4 - k5 * x2 * x4;\n",
+  "dx5/dt = k7 * x1;\n",
+  "da/dt = 0;\n",
+  "db/dt = 0;\n",
+  "dd1/dt = 0;\n",
+  "y1 = x5;\n",
+  "y2 = a;\n",
+  "y3 = b;\n",
+  "y4 = d1;\n"]]
 ]):
 
 # Setup
@@ -1507,7 +1512,7 @@ timed_Multi:=proc(model, simplified_generators, no_bound, simplify_bound, max_pe
 	output := MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi):
 	finish:=time():
 	DocumentTools:-SetProperty(output_targets_multi[runningtime], value, convert(finish-start, string), 'refresh'):
-	return output:
+	return table([output=output, runtime=finish-start]):
 end proc:
 
 timed_Single:=proc(model, output_targets_single)
@@ -1519,24 +1524,16 @@ timed_Single:=proc(model, output_targets_single)
 	return output:
 end proc:
 
-good_examples := op({ indices( examples, 'nolist' ) } minus {"Cholera", "NFkB", "Pharm" });
-DocumentTools:-SetProperty("examples", "itemList", [" ", sort([good_examples])[]] );
-DocumentTools:-SetProperty("examples", "value", " ");
-DocumentTools:-SetProperty("examples", enabled, false):
+
 DocumentTools:-SetProperty("RunningTimeSingle", value, ""):
 DocumentTools:-SetProperty("RunningTimeMulti", value, ""):
 DocumentTools:-SetProperty("RunningTimeSIAN", value, ""):
-DocumentTools:-SetProperty("equation", value, ""):
-DocumentTools:-SetProperty("RunningTimeSingle1", value, ""):
-DocumentTools:-SetProperty("RunningTimeMulti1", value, ""):
-DocumentTools:-SetProperty("RunningTimeSIAN1", value, ""):
 
-DocumentTools:-SetProperty("manually", value, true):
 DocumentTools:-SetProperty("run_system", enabled, true):
 DocumentTools:-SetProperty("Meter_sian", visible, true):
 DocumentTools:-SetProperty("Meter_sian", value, 0):
 DocumentTools:-SetProperty("sigma", enabled, true):
-DocumentTools:-SetProperty("run_choice", enabled, false):
+
 
 DocumentTools:-SetProperty("p", enabled, true):
 DocumentTools:-SetProperty("params", enabled, true):
@@ -1549,24 +1546,11 @@ DocumentTools:-SetProperty("GlobalParams1", expression, NULL):
 DocumentTools:-SetProperty("LocalParams1", expression, NULL):
 DocumentTools:-SetProperty("NoIDParams1", expression, NULL):
 
-DocumentTools:-SetProperty("GlobalParams", expression, NULL):
-DocumentTools:-SetProperty("LocalParams", expression, NULL):
-DocumentTools:-SetProperty("NoIDParams", expression, NULL):
-
 DocumentTools:-SetProperty("Parameters", value, ""):
-DocumentTools:-SetProperty("Parameters1", value, ""):
-
 
 DocumentTools:-SetProperty("Bound", expression, NULL):
 DocumentTools:-SetProperty("MultiFunctions", expression, NULL):
 DocumentTools:-SetProperty("SingleFunctions", expression, NULL):
-
-DocumentTools:-SetProperty("Bound1", expression, NULL):
-DocumentTools:-SetProperty("MultiFunctions1", expression, NULL):
-DocumentTools:-SetProperty("SingleFunctions1", expression, NULL):
-
-DocumentTools:-SetProperty("RunSingle1", enabled, false):
-DocumentTools:-SetProperty("RunMulti1", enabled, false):
 
 DocumentTools:-SetProperty("RunSingle", enabled, true):
 DocumentTools:-SetProperty("RunMulti", enabled, true):
@@ -1574,30 +1558,21 @@ DocumentTools:-SetProperty("RunMulti", enabled, true):
 DocumentTools:-SetProperty("Refine", enabled, false):
 DocumentTools:-SetProperty("Refine", value, false):
 
-DocumentTools:-SetProperty("Refine1", enabled, false):
-DocumentTools:-SetProperty("Refine1", value, false):
-
 DocumentTools:-SetProperty("RunSIAN", enabled, true):
 DocumentTools:-SetProperty("RunSIAN", value, true):
 
-DocumentTools:-SetProperty("being_refined1", caption, ""):
 DocumentTools:-SetProperty("being_refined", caption, ""):
-
 
 DocumentTools:-SetProperty("RunSingle", value, false):
 DocumentTools:-SetProperty("RunMulti", value, false):
-DocumentTools:-SetProperty("RunSingle1", value, false):
-DocumentTools:-SetProperty("RunMulti1", value, false):
 
 DocumentTools:-SetProperty("SimplifiedGen", enabled, false):
 DocumentTools:-SetProperty("NoBound", enabled, false):
-DocumentTools:-SetProperty("SimplifiedGen1", enabled, false):
-DocumentTools:-SetProperty("NoBound1", enabled, false):
+
 
 DocumentTools:-SetProperty("UsingUpTo", enabled, false):
 DocumentTools:-SetProperty("MaxPermutations", enabled, false):
 DocumentTools:-SetProperty("Permutations", enabled, false):
 
-DocumentTools:-SetProperty("UsingUpTo1", enabled, false):
-DocumentTools:-SetProperty("MaxPermutations1", enabled, false):
-DocumentTools:-SetProperty("Permutations1", enabled, false):
+DocumentTools:-SetProperty("example_box", value, "Custom"):
+# ChooseExample():b
