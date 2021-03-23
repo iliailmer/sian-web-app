@@ -1,1 +1,8 @@
 *.bak
+sian-combos-*
+start-up*
+load*
+parsing*
+*.log
+old-versions
+.DS_Store

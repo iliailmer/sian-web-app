@@ -16,7 +16,7 @@ end:
 FieldToIdeal := proc(gens)
     # Input: generators of a subfield of the field of rational functions
     # Computes the MSQ ideal of the field with the new variables of the form x_aux
-    # See: https://mediatum.u.tum.de/doc/685465/document.pdf Definition 2.16
+    # See: https://mediatum.ub.tum.de/doc/685465/document.pdf Definition 2.16
     #      https://doi.org/10.1016/j.jsc.2005.09.010          Lemma 2.1
     local all_vars, subs_dupl, all_dupl, common_denom, polys, f, gb:
     all_vars := indets(gens):
@@ -532,14 +532,14 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 
     if simplified_generators then
         if infolevel > 0 then
-		  LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
+		  LogText(sprintf("ME WARNING: Entering simplification of generators! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
         end if:
         result := [op(result), FilterGenerators(FieldToIdeal(generators))]:
     end if:
     
 
    # result[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result[2])});
-    
+
     if simplified_generators then
         DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[3], list)), 'refresh'):
     else
@@ -564,7 +564,6 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     else
 	  DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
     fi:
-    
 
     if simplify_bound and not skip_simplify then
         if StringTools[Has](output_targets[bound_], "1") then
@@ -623,12 +622,12 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
                 generators := {op(generators), io_coef[i] / io_coef[1]}:
           end do:
         end do: 
-        result_sb[2]:=generators;
+        result_sb[2]:=[generators];
 	   if simplified_generators then
             if infolevel > 0 then
                 LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"),  output_targets[log]):
             end if:
-            result_sb := [op(result), FilterGenerators(FieldToIdeal(generators))]:
+            result_sb := [op(result_sb), FilterGenerators(FieldToIdeal(generators))]:
         end if:
         if simplified_generators then
             DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
@@ -656,7 +655,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
         fi: # end of bound>0
     fi:	# end of simplify_bound
     
-    return table([bd=bound]):
+    return bound;#table([bd=bound]):
 end proc:
 
 GetPSSolution := proc(model, ord)
@@ -693,7 +692,7 @@ end proc:
 #===============================================================================
 
 #===============================================================================
-IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, {count_solutions:=true})#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
+IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions)#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
 #===============================================================================
  local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
         sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible, 
@@ -1039,8 +1038,8 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, {co
     if count_solutions then
      LogParameters("",output_targets[parameters]):
     	for var in theta_g do
- 		LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, 1), output_targets[log]):
-		LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `, number of solutions: `, 1), output_targets[parameters]):
+ 		LogText(sprintf("%s %a, %s %a\n",`The number of solutions for`, var, `is`, 1), output_targets[log]):
+		LogParameters(sprintf("%s %a, %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `number of solutions:`, 1), output_targets[parameters]):
 		solutions_table[var]:=1:
     	end do:
 	
@@ -1048,8 +1047,8 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, {co
 		G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var])):
 		P := select(x->evalb(indets(x)={var}), G):
 		solutions_table[var]:=degree(P[1], [op(indets(P))]): 
-		LogText(sprintf("%s %a %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
-		LogParameters(sprintf("%s %a %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `, number of solutions: `, degree(P[1], [op(indets(P))])),  output_targets[parameters])
+		LogText(sprintf("%s %a, %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
+		LogParameters(sprintf("%s %a, %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `number of solutions:`, degree(P[1], [op(indets(P))])),  output_targets[parameters])
     	end do:
      fi:
      
@@ -1497,10 +1496,10 @@ examples := table([
 
 # Setup
 
-timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian)
+timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions)
 	local output, data, start, finish:
 	start:= time():
-	output := IdentifiabilityODE(sigma, params_to_assess, p, output_targets_sian):
+	output := IdentifiabilityODE(sigma, params_to_assess, p, output_targets_sian, count_solutions):
 	finish:= time():
 	DocumentTools:-SetProperty(output_targets_sian[runningtime], value, convert(finish-start, string), 'refresh'): # time
 	return  output:
@@ -1509,10 +1508,10 @@ end proc:
 timed_Multi:=proc(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi)
 	local start, output, finish, data:
 	start:=time():
-	output := MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi):
+	bound := MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi):
 	finish:=time():
 	DocumentTools:-SetProperty(output_targets_multi[runningtime], value, convert(finish-start, string), 'refresh'):
-	return table([output=output, runtime=finish-start]):
+	return [bound, finish-start]: #table([output=bound, runtime=finish-start]):
 end proc:
 
 timed_Single:=proc(model, output_targets_single)
@@ -1522,6 +1521,33 @@ timed_Single:=proc(model, output_targets_single)
 	finish:=time():
 	DocumentTools:-SetProperty(output_targets_single[runningtime], value, convert(finish-start, string), 'refresh'):
 	return output:
+end proc:
+
+with(StringTools):
+
+sigmaParser := proc(sigma)
+	local states, state_eqs, outputs, output_eqs;
+	if SearchText("diff", sigma)>0 then
+		sigma := [map(x->parse(x), Split(sigma, ";"))]:
+	else
+		LogExpression(sprintf("%q \n", Split(sigma, ";")), "LogAreaSIAN"):
+		sigma := Split(sigma, ";"):
+		
+		states := map(x->Trim(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "\\1", x)), select(x->SearchText(x, "/dt")>0, sigma)):
+		state_eqs := select(x->Has(x, "/dt"), sigma):
+		
+		outputs :=  map(x->Trim(Split(x, "=")[1]), select(x->not Has(x, "/dt"), sigma)):
+		output_eqs := select(x->not SearchText(x, "/dt")>0, sigma):
+		
+		state_eqs := map(x->convert(subs({seq(parse(states[i])=parse(cat(states[i],"(t)")), i=1..nops(states))}, parse(x)), string),  state_eqs):
+		state_eqs := map(x->parse(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "diff(\\1(t), t)\\2", x)), state_eqs):
+	
+		output_eqs := map(x->parse(Subs({seq(outputs[i]=cat(outputs[i],"(t)"), i=1..nops(outputs))}, x)), output_eqs):	
+		output_eqs := map(x->subs({seq(parse(states[i])=parse(cat(states[i],"(t)")), i=1..nops(states))}, x),  output_eqs):
+		
+		sigma := [op(state_eqs), op(output_eqs)]:
+	end if:
+	return sigma;
 end proc:
 
 
@@ -1542,6 +1568,12 @@ DocumentTools:-SetProperty("LogAreaSE", value, ""):
 DocumentTools:-SetProperty("LogAreaSIAN", value, ""):
 DocumentTools:-SetProperty("LogAreaME", value, ""):
 
+DocumentTools:-SetProperty("bypass", enabled, true):
+DocumentTools:-SetProperty("bypass", value, true):
+
+DocumentTools:-SetProperty("printSolutions", enabled, true):
+DocumentTools:-SetProperty("printSolutions", value, true):
+
 DocumentTools:-SetProperty("GlobalParams1", expression, NULL):
 DocumentTools:-SetProperty("LocalParams1", expression, NULL):
 DocumentTools:-SetProperty("NoIDParams1", expression, NULL):
@@ -1552,27 +1584,24 @@ DocumentTools:-SetProperty("Bound", expression, NULL):
 DocumentTools:-SetProperty("MultiFunctions", expression, NULL):
 DocumentTools:-SetProperty("SingleFunctions", expression, NULL):
 
-DocumentTools:-SetProperty("RunSingle", enabled, true):
-DocumentTools:-SetProperty("RunMulti", enabled, true):
+DocumentTools:-SetProperty("SkipSingle", enabled, true):
+DocumentTools:-SetProperty("SkipSingle", value, false):
 
-DocumentTools:-SetProperty("Refine", enabled, false):
-DocumentTools:-SetProperty("Refine", value, false):
+DocumentTools:-SetProperty("ComputeId", enabled, true):
+DocumentTools:-SetProperty("ComputeId", value, true):
+
+DocumentTools:-SetProperty("SimplifiedGen", enabled, true):
+DocumentTools:-SetProperty("SimplifiedGen", value, true):
+DocumentTools:-SetProperty("NoBound", enabled, true):
+DocumentTools:-SetProperty("NoBound", value, false):
+DocumentTools:-SetProperty("Refine", enabled, true):
 
 DocumentTools:-SetProperty("RunSIAN", enabled, true):
 DocumentTools:-SetProperty("RunSIAN", value, true):
 
 DocumentTools:-SetProperty("being_refined", caption, ""):
 
-DocumentTools:-SetProperty("RunSingle", value, false):
-DocumentTools:-SetProperty("RunMulti", value, false):
-
-DocumentTools:-SetProperty("SimplifiedGen", enabled, false):
-DocumentTools:-SetProperty("NoBound", enabled, false):
-
-
-DocumentTools:-SetProperty("UsingUpTo", enabled, false):
-DocumentTools:-SetProperty("MaxPermutations", enabled, false):
-DocumentTools:-SetProperty("Permutations", enabled, false):
+DocumentTools:-SetProperty("sigma", value, "dx1/dt = a*x1 + x2*b + u(t);\ndx2/dt = x2*c + x1;\ny=x2"):
 
 DocumentTools:-SetProperty("example_box", value, "Custom"):
-# ChooseExample():b
+# ChooseExample():
