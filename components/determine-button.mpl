@@ -39,7 +39,7 @@ computeId:= parse(GetProperty("ComputeId", value)):
 simplified_generators := parse(GetProperty("SimplifiedGen", value)):
 simplify_bound := parse(GetProperty("Refine", value)):
 no_bound:= parse(GetProperty("NoBound", value)):
-
+use_char := parse(GetProperty("use_char", value)):
 err := 0:
 #try:
 	sigma:="":
@@ -50,11 +50,11 @@ err := 0:
 	else
 		LogText(sprintf("Using text-based input format"), "LogAreaSIAN"):
 		sigma := Split(sigma, ";"):
-		states := map(x->Trim(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "\\1", x)), select(x->Has(x, "/dt"), sigma)):
-		state_eqs := select(x->Has(x, "/dt"), sigma):
+		states := map(x->Trim(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "\\1", x)), select(x->Search("/dt", x)>0, sigma)):
+		state_eqs := select(x->Search("/dt", x)>0, sigma):
 		
-		outputs :=  map(x->Trim(Split(x, "=")[1]), select(x->not Has(x, "/dt"), sigma)):
-		output_eqs := select(x->not Has(x, "/dt"), sigma):
+		outputs :=  map(x->Trim(Split(x, "=")[1]), select(x-> not Search("/dt", x)>0, sigma)):
+		output_eqs := select(x->not Search("/dt", x)>0, sigma):
 		
 		state_eqs := map(x->convert(subs({seq(parse(states[i])=parse(cat(states[i],"(t)")), i=1..nops(states))}, parse(x)), string),  state_eqs):
 		state_eqs := map(x->parse(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "diff(\\1(t), t)\\2", x)), state_eqs):
@@ -80,6 +80,7 @@ end try:*)
 
 #try:
 	params_to_assess := [seq(parse(expr), expr in StringTools[Split](GetProperty("params", value), ";"))]:
+	LogExpression(sprintf("%q \n", params_to_assess), "LogAreaSIAN"):
 (*catch:
 	SetProperty("LogAreaSIAN", value, "Error Parsing Parameters"): # LogText(
 	err:=1:
@@ -103,6 +104,7 @@ end try:*)
 	end if:
 	
 	if nops(params_to_assess)=0 then
+		LogText(sprintf("%q\n", "Checking all parameters"), "LogAreaSIAN"):
 		params_to_assess := GetParameters(sigma, initial_conditions):
 	end if:
 	p:=parse(GetProperty("p", value)):
@@ -147,7 +149,12 @@ if err=0 then
 	count_solutions := parse(GetProperty("printSolutions", value)):
 
 	if run_sian then
-		out_sian := timed_SIAN(sigma,  GetParameters(sigma, initial_conditions), 0.99, output_targets_sian, count_solutions):
+		if use_char then
+			char := 2^29 -3:
+		else
+			char := 0:
+		end if:
+		out_sian := timed_SIAN(sigma,  params_to_assess, 0.99, output_targets_sian, count_solutions, char):
 		basis_sian:=out_sian[basis]:
 		ordering_sian:=out_sian[varordering]:
 		all_other:=out_sian[allvars]:
@@ -176,9 +183,10 @@ if err=0 then
 	fi:
 	if computeId then
 		out_multi := timed_Multi(sigma, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi):
+		generators := convert(out_multi[3],list):
 		finish_bypass_multi:=out_multi[2]:
-		out_multi_bypass := out_multi[1]:
-		if out_multi_bypass=1  then
+		bound := out_multi[1]: # bound value
+		if bound=1  then
 			if not skip_single then
 				LogText(sprintf("Deterministically bypassing Single-Experiment via Multi-Experiment check, bound from Multi-Experiment = 1"), "LogAreaSE"):
 			end if:
@@ -187,10 +195,13 @@ if err=0 then
 		fi:	
 		if not skip_single then
 			out_single := timed_Single(sigma, output_targets_single):
+			if out_single = generators and bound>1 then
+				LogText(sprintf("Deterministically overriding Multi-Experiment via Single-Experiment check,\n bound from Multi-Experiment > 1, single- and multi-experiment generators are the same"), "LogAreaSE"):
+				SetProperty("MultiFunctions", value, convert(out_single, list)):
+				SetProperty("Bound", value, 1):
+			fi:	
+			LogExpression(sprintf("%q %q\n",out_single, generators), "LogAreaSE");
 		fi:
 	fi:
-	
-	
-	
 	SetProperty("Meter_sian", value, 0):
 end if:
