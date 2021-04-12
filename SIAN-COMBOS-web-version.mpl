@@ -479,183 +479,107 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     # 2. no_bound - if True, then bound for the number of experiments is not computed (may save a lot of time)
 
     local states, inputs, outputs, ios, params, model_eqs, io_eqs, io_coeffs, io_coef, wrnsk, s, roll, wrnsk_sub, r, bound, 
-    generators, i, eq, result, model_denomfree, target, start, finish, infolevel, use_brackets,outputs_permutations, 
-    outputs_, io_coeffs_sb, io_eqs_sb, bound_sb, skip_simplify, result_sb, best_output_ordering:
-
-    infolevel := 1:
+    generators, i, eq, result, model_denomfree, target, start, finish, infolevel, use_brackets, output_permutations, 
+    outputs_, io_coeffs_sb, io_eqs_sb, bound_sb, skip_simplify, result_sb, best_output_ordering, returned_generators, idx, old_bound:
 
     states, inputs, outputs, params, model_eqs := op(ParseInput_(model)):
-
-    if infolevel > 0 then
-        LogText(sprintf("ME Computing input-output equations\n"), output_targets[log]):
-    end if:
+    use_brackets:=false:
+    output_permutations := combinat[permute](outputs):
+    output_permutations:= output_permutations[..min(nops(output_permutations),max_perms)];
     
+    infolevel := 1:
     model_denomfree := ExtractDenominator(model_eqs):
-    io_eqs := GetIOEquations(model_denomfree, states, inputs, outputs, params, true, infolevel, output_targets[log]):
-    if infolevel > 0 then
-        LogText(sprintf("ME Total number of io-equations: %a\n", nops(io_eqs)), output_targets[log]):
-    end if:
-    io_coeffs := []:
-    bound := 0:
-    
-    for eq in io_eqs do
-        io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel, output_targets[log])[1]:
-        io_coeffs := [op(io_coeffs), io_coef]:
-    end do:
-
-    generators := {}:
-    for io_coef in io_coeffs do
-         io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
-         for i from 2 to nops(io_coef) do
-             generators := {op(generators), io_coef[i] / io_coef[1]}:
-         end do:
-    end do:
-
-
-    if no_bound = false then
-         for eq in io_eqs do
-             if infolevel > 0 then
-                LogText(sprintf("ME Constructing the Wronskian\n"), output_targets[log]):
-             end if:
-             wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, model, infolevel, output_targets[log])):
-             # in the notation of the theorem
-             s := nops(io_coef) - 1:
-             # substitution does not increase the rank, so the resulting bound will be correct
-             roll := rand(1..15):
-             wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
-             r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
-             bound := max(bound, s - r + 1):
-         end do:
-    end if:  
-
-    result := [bound, generators]:
-
-    if simplified_generators then
-        if infolevel > 0 then
-		  LogText(sprintf("ME WARNING: Entering simplification of generators! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
-        end if:
-        result := [op(result), FilterGenerators(FieldToIdeal(generators))]:
-    end if:
-    
-
-   # result[2]:=select(x->whattype(x)<>integer, {seq(op(each), each in result[2])});
-
-    if simplified_generators then
-        DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[3], list)), 'refresh'):
-    else
-    	   DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[2], list)), 'refresh'):
-    fi: 
     skip_simplify := false:
-    if bound > 0 then
-    	  DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
-    	  if bound=1 then
-    	  	skip_simplify := true:
-    	  	if simplify_bound then
-    	  		LogText(sprintf("Bound on the number of experiments = 1, \"Try to refine bound\" was selected but it will be skipped"), output_targets[log]):
-    	  	fi:
-    	  	#if output_targets[5] then
-    	  		if simplified_generators then
-       			DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[3], list)), 'refresh'):
-   			else
-    	   			DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[2], list)), 'refresh'):
-   			fi:
-   		#fi:
-    	  fi:
-    else
-	  DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
-    fi:
+    old_bound := 10: # this will be replaced by a smaller boud every time
+    idx:=0:
+    for use_brackets in [true, false] do
+        for outputs in output_permutations do
+        	LogText(sprintf("Permutation:\t%a\n", outputs),  output_targets[log]):
+        	# the first iteration is default permutation
+	    	   LogText(sprintf("Use Brackets?\t%a\n", use_brackets), output_targets[log]):
+	        if infolevel > 0 then
+	            LogText(sprintf("ME Computing input-output equations\n"), output_targets[log]):
+	   	   end if:
+	   	   io_eqs := GetIOEquations(model_denomfree, states, inputs, outputs, params, use_brackets, infolevel, output_targets[log]):
+	   	   if infolevel > 0 then
+	            LogText(sprintf("ME Total number of io-equations: %a\n", nops(io_eqs)), output_targets[log]):
+	        end if:
+	        io_coeffs := []:
+	        
+	        for eq in io_eqs do
+	            io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel, output_targets[log])[1]:
+	            io_coeffs := [op(io_coeffs), io_coef]:
+	        end do:
 
-    if simplify_bound and not skip_simplify then
-        if StringTools[Has](output_targets[bound_], "1") then
-    	   	DocumentTools:-SetProperty("being_refined1", caption, "being refined", 'refresh'):
-    	   else
-   		DocumentTools:-SetProperty("being_refined", caption, "being refined", 'refresh'):
-   	   fi:
-    	   use_brackets:=false:
-    	   outputs_permutations:= combinat[permute](outputs):
-    	   outputs_permutations:= outputs_permutations[..min(nops(outputs_permutations),max_perms)];
-    	   
-	   for use_brackets in [true, false] do
-	   	LogText(sprintf("Use Brackets?\t%a\n", use_brackets), output_targets[log]):
-	   	for outputs_ in outputs_permutations do
-		    io_eqs_sb := GetIOEquations(model_denomfree, states, inputs, outputs_, params, use_brackets, infolevel,  output_targets[log]):
-		    if infolevel > 0 then
-            	    LogText(sprintf("ME WARNING: Trying to Simlify Bound! \nTotal number of io-equations: %a\n", nops(io_eqs_sb)),  output_targets[log]):
-    	   	    end if:
-    	   	    LogText(sprintf("Permutation:\t%a\n", outputs_),  output_targets[log]):
-    	   	    
-    	   	    io_coeffs_sb := []:
-	         bound_sb := 0:
-	         for eq in io_eqs do
-	             io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel,  output_targets[log])[1]:
-	             io_coeffs_sb := [op(io_coeffs_sb), io_coef]:
-	         end do:
-		    
-	   	    if no_bound = false then
-                  for eq in io_eqs_sb do
+	        generators := {}:
+    	        for io_coef in io_coeffs do
+                 io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
+                 for i from 2 to nops(io_coef) do
+                     generators := {op(generators), io_coef[i] / io_coef[1]}:
+                 end do:
+              end do:
+              bound := 0:
+		    if no_bound = false then
+                  for eq in io_eqs do
                       if infolevel > 0 then
-                          LogText(sprintf("ME Constructing the Wronskian\n"),  output_targets[log]):
+                          LogText(sprintf("ME Constructing the Wronskian\n"), output_targets[log]):
                       end if:
-                      wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs_, params, model, infolevel,  output_targets[log])):
+                      wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, model, infolevel, output_targets[log])):
                       # in the notation of the theorem
                       s := nops(io_coef) - 1:
                       # substitution does not increase the rank, so the resulting bound will be correct
                       roll := rand(1..15):
                       wrnsk_sub := map(v -> v = roll(), indets(wrnsk)):
                       r := LinearAlgebra[Rank](subs(wrnsk_sub, wrnsk)):
-                      bound_sb := max(bound_sb, s - r + 1):
+                      bound := max(bound, s - r + 1):
                   end do:
-        	    end if: 
-        	    if bound_sb<bound then
-        	        bound:=bound_sb:
-        	        result_sb := [bound, io_coeffs_sb]:
-        	        best_output_ordering:=outputs_;
-              fi:
-	     od: # end of loop over permutations
-	   od: # end of loop over use_brackets [true/false]
-	   io_coeffs := result_sb[2]:
-	   
-	   generators := {}:
-        for io_coef in io_coeffs do
-		io_coef := sort(io_coef, (a, b) -> length(convert(a, string)) < length(convert(b, string)));
-          for i from 2 to nops(io_coef) do
-                generators := {op(generators), io_coef[i] / io_coef[1]}:
-          end do:
-        end do: 
-        result_sb[2]:=[generators];
-	   if simplified_generators then
-            if infolevel > 0 then
-                LogText(sprintf("ME WARNING: Entering simplification! if this takes too long, try unchecking \"Simplified Generators\"\n"),  output_targets[log]):
-            end if:
-            result_sb := [op(result_sb), FilterGenerators(FieldToIdeal(generators))]:
-        end if:
-        if simplified_generators then
-            DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
-        else
-    	       DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
-        fi: 
-        if StringTools[Has](output_targets[bound_], "1") then
-    	   	DocumentTools:-SetProperty("being_refined1", caption, "", 'refresh'):
-    	   else
-   		DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
-   	   fi:
-        if bound_sb > 0 then
-    	       DocumentTools:-SetProperty(output_targets[bound_], expression, bound, 'refresh'):
-    	       if bound_sb=1 then
-    	  	     # if output_targets[5] then
-    	  		     if simplified_generators then
-                        DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[3], list)), 'refresh'):
-                    else
-    	                   DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result_sb[2], list)), 'refresh'):
-   			     fi:
-   		     # fi:
-    	       fi: # end of bound=1
-        else
-	       DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
-        fi: # end of bound>0
-    fi:	# end of simplify_bound
-    
-    return bound;#table([bd=bound]):
+               end if:
+               if bound<old_bound or idx=0 then # idx makes sure we assign a new bound at the first run
+               	old_bound:=bound:
+               end if:
+               idx := idx +1;
+               LogText(sprintf("New Bound:\t%a\n", bound),  output_targets[log]):
+               result := [old_bound, generators]:
+               if simplified_generators then
+                   if infolevel > 0 then
+		             LogText(sprintf("ME WARNING: Entering simplification of generators! if this takes too long, try unchecking \"Simplified Generators\"\n"), output_targets[log]):
+                   end if:
+                   result := [op(result), FilterGenerators(FieldToIdeal(generators))]:
+                   DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[3], list)), 'refresh'):
+                   returned_generators := result[3]:
+               else
+                   DocumentTools:-SetProperty(output_targets[multi], expression, map(simplify, convert(result[2], list)), 'refresh'):
+                   returned_generators := result[2]:
+               end if:
+               if old_bound > 0 then
+    	              DocumentTools:-SetProperty(output_targets[bound_], expression, old_bound, 'refresh'):
+    	              if old_bound=1 then
+    	  	             skip_simplify := true:
+    	  	             if simplify_bound then
+    	  		            LogText(sprintf("Bound on the number of experiments = 1, \"Try to refine bound\" was selected but it will be skipped"), output_targets[log]):
+    	  	             end if:
+	        	        if simplified_generators then
+       		            DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[3], list)), 'refresh'):
+   		             else
+    	   		            DocumentTools:-SetProperty(output_targets[single], expression, map(simplify, convert(result[2], list)), 'refresh'):
+   		             end if:
+    	              end if:
+               else
+	              DocumentTools:-SetProperty(output_targets[bound_], expression, "",'refresh'):
+               end if:
+               if skip_simplify or not simplify_bound then
+               	break:
+              	else
+              		DocumentTools:-SetProperty("being_refined", caption, "being refined", 'refresh'):
+               end if:
+         end do: # loop over outputs
+         if skip_simplify or not simplify_bound then
+             # only breaks if we do not simplify. the code runs at most once
+             break:
+         end if:
+    end do:
+    DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
+    return [bound, returned_generators];#table([bd=bound]):
 end proc:
 
 GetPSSolution := proc(model, ord)
@@ -692,7 +616,7 @@ end proc:
 #===============================================================================
 
 #===============================================================================
-IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions)#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
+IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions, char)#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
 #===============================================================================
  local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
         sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible, 
@@ -1027,13 +951,20 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
       end if:
     end do:    
   elif method = 2 then
-    gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)));
-    
-    for i from 1 to nops(theta_l) do
-      if Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars))) = subs(theta_hat, theta_l[i]) then
-        theta_g := [ op(theta_g), theta_l[i] ]:
-      end if:
-    end do:
+     LogText(sprintf("%s %a\n", `Computing Groebner Basis with characteristic`, char), output_targets[log]):
+    	gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)), characteristic=char);
+    # LogExpression(sprintf("%a", gb), output_targets[log]):
+     for i from 1 to nops(theta_l) do
+      # LogExpression(sprintf("%a -> %a", Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars)), characteristic=char),  subs(theta_hat, theta_l[i]) mod char), output_targets[log]):
+       if char>0 then
+       	check := subs(theta_hat, theta_l[i]) mod char:
+       else
+       	check := subs(theta_hat, theta_l[i]):
+       end if:
+       if Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars)), characteristic=char) = check then
+         theta_g := [ op(theta_g), theta_l[i] ]:
+       end if:
+     end do:
 
     if count_solutions then
      LogParameters("",output_targets[parameters]):
@@ -1044,24 +975,14 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     	end do:
 	
     	for var in select(p -> not p in theta_g, theta_l) do
-		G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var])):
+		G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var]), characteristic=char):
 		P := select(x->evalb(indets(x)={var}), G):
 		solutions_table[var]:=degree(P[1], [op(indets(P))]): 
 		LogText(sprintf("%s %a, %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
 		LogParameters(sprintf("%s %a, %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `number of solutions:`, degree(P[1], [op(indets(P))])),  output_targets[parameters])
     	end do:
      fi:
-     
     	DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
-  
-  elif method = 3 then
-    R := RegularChains[PolynomialRing](vars):
-    for i from 1 to nops(theta_l) do
-      tr := [RegularChains[Triangularize](Et_hat, [Q_hat, theta_l[i] - subs(theta_hat,theta_l[i])], R)]:
-      for e in tr do
-        LogExpression(sprintf("%q\n", RegularChains[Equations](e, R)), output_targets[log]):
-      end do:
-    end do:
   else
     LogText(sprintf(`No such method`), output_targets[log]):
     LogText(sprintf("%q\n", "Provided method: %d, allowed methods: 1, 2", method), output_targets[log]):
@@ -1300,39 +1221,6 @@ local logsofar;
 
 end proc:
 
-
-
-(*
-ChooseExample := proc()
-local params, output;
-	local exname := GetProperty("examples", value):
-
-	SetProperty(LogArea, value, ""):
-	SetProperty("GlobalParams", expression, NULL):
-	SetProperty("LocalParams", expression, NULL):
-	SetProperty("NoIDParams", expression, NULL):
-	if exname = " " then
-		SetProperty("equation", value, ""):
-		SetProperty("MathContainer0", expression, NULL):
-		SetProperty("MathContainer1", expression, NULL):
-	else
-		SetProperty("equation", value, examples[exname][1],'refresh'):
-		SetProperty("MathContainer0", value, examples[exname][2],'refresh'):
-		if examples[exname][3] <> [ ] then
-			params := examples[exname][3]:
-		else
-			params := GetParameters(examples[exname][2]):
-		end if;
-	SetProperty("MathContainer1", value, params,'refresh'):
-	output := IdentifiabilityODE(examples[exname][2], params):
-	SetProperty("GlobalParams", expression, output[globally]):
-	SetProperty("LocalParams", expression, output[locally_not_globally]):
-	SetProperty("NoIDParams", expression, output[non_identifiable]):
-	end if:
-end proc:
-*)
-# Examples
-
 examples := table([  
   	"Biohydrogenation" = [ "Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\n Review: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (3) in Supplementary Material 2, initail conditions are assumed to be unknown",
   	[
@@ -1359,7 +1247,7 @@ examples := table([
   "dx2/dt = p3 * x1 - p4 * x2 + x3;\n",
   "dx3/dt = p6 * x1 - p7 * x3;\n",
   "du0/dt = 1;\n",
-  "y = x1;\n",
+  "y1 = x1;\n",
   "y2 = u0;\n"]],
 
 	"DAISY_mamil3" = ["DAISY mamil 3",
@@ -1390,7 +1278,7 @@ examples := table([
   "dx/dt = lm - d * x - beta * x * v;\n",
   "dy/dt = beta * x * v - a * y;\n",
   "dv/dt = k * y - u * v;\n",
-  "dw/dt = c * z * y * w - c * q * y * w - b * w;\n",
+  "dw/dt = c * x * y * w - c * q * y * w - b * w;\n",
   "dz/dt = c * q * y * w - h * z;\n",
   "y1 = w;\n",
   "y2 = z"]],
@@ -1481,9 +1369,9 @@ examples := table([
 
 	"Tumor" = ["Example (with initial conditions assumed being unknown) from Section 3 of\n'Examples of testing global identifiability of biological and biomedical models with the DAISY software'\nby M.P. Saccomani, S. Audoly, G. Bellu, L. D'Angio",
 [ "dx1/dt = -(k3 + k7) * x1 + k4 * x2;\n",
-  "dx2/dt = k3 * x1 - (k4 + a * k5 + b * d * k5) * x2 + k6 * x3 + k6 * x4 + k5 * x2 * x3 + k5 * x2 * x4;\n",
+  "dx2/dt = k3 * x1 - (k4 + a * k5 + b * d1 * k5) * x2 + k6 * x3 + k6 * x4 + k5 * x2 * x3 + k5 * x2 * x4;\n",
   "dx3/dt = a * k5 * x2 - k6 * x3 - k5 * x2 * x3;\n",
-  "dx4/dt = b * d * k5 * x2 - k6 * x4 - k5 * x2 * x4;\n",
+  "dx4/dt = b * d1 * k5 * x2 - k6 * x4 - k5 * x2 * x4;\n",
   "dx5/dt = k7 * x1;\n",
   "da/dt = 0;\n",
   "db/dt = 0;\n",
@@ -1496,10 +1384,10 @@ examples := table([
 
 # Setup
 
-timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions)
+timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions, char)
 	local output, data, start, finish:
 	start:= time():
-	output := IdentifiabilityODE(sigma, params_to_assess, p, output_targets_sian, count_solutions):
+	output := IdentifiabilityODE(sigma, params_to_assess, p, output_targets_sian, count_solutions, char):
 	finish:= time():
 	DocumentTools:-SetProperty(output_targets_sian[runningtime], value, convert(finish-start, string), 'refresh'): # time
 	return  output:
@@ -1508,10 +1396,10 @@ end proc:
 timed_Multi:=proc(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi)
 	local start, output, finish, data:
 	start:=time():
-	bound := MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi):
+	bound, generators := op(MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi)):
 	finish:=time():
 	DocumentTools:-SetProperty(output_targets_multi[runningtime], value, convert(finish-start, string), 'refresh'):
-	return [bound, finish-start]: #table([output=bound, runtime=finish-start]):
+	return [bound, finish-start, generators]: #table([output=bound, runtime=finish-start]):
 end proc:
 
 timed_Single:=proc(model, output_targets_single)
@@ -1559,7 +1447,9 @@ DocumentTools:-SetProperty("run_system", enabled, true):
 DocumentTools:-SetProperty("Meter_sian", visible, true):
 DocumentTools:-SetProperty("Meter_sian", value, 0):
 DocumentTools:-SetProperty("sigma", enabled, true):
-
+DocumentTools:-SetProperty("p", value, "0.99"):
+DocumentTools:-SetProperty("params", value, ""):
+DocumentTools:-SetProperty("replicas", value, "1"):
 
 DocumentTools:-SetProperty("p", enabled, true):
 DocumentTools:-SetProperty("params", enabled, true):
@@ -1567,9 +1457,6 @@ DocumentTools:-SetProperty("replicas", enabled, true):
 DocumentTools:-SetProperty("LogAreaSE", value, ""):
 DocumentTools:-SetProperty("LogAreaSIAN", value, ""):
 DocumentTools:-SetProperty("LogAreaME", value, ""):
-
-DocumentTools:-SetProperty("bypass", enabled, true):
-DocumentTools:-SetProperty("bypass", value, true):
 
 DocumentTools:-SetProperty("printSolutions", enabled, true):
 DocumentTools:-SetProperty("printSolutions", value, true):
@@ -1584,24 +1471,27 @@ DocumentTools:-SetProperty("Bound", expression, NULL):
 DocumentTools:-SetProperty("MultiFunctions", expression, NULL):
 DocumentTools:-SetProperty("SingleFunctions", expression, NULL):
 
-DocumentTools:-SetProperty("SkipSingle", enabled, true):
-DocumentTools:-SetProperty("SkipSingle", value, false):
+DocumentTools:-SetProperty("use_char", enabled, true):
+DocumentTools:-SetProperty("use_char", value, false):
+DocumentTools:-SetProperty("p_label", enabled, true):
 
 DocumentTools:-SetProperty("ComputeId", enabled, true):
-DocumentTools:-SetProperty("ComputeId", value, true):
+DocumentTools:-SetProperty("ComputeId", value, false):
+DocumentTools:-SetProperty("bypass", enabled, false):
 
-DocumentTools:-SetProperty("SimplifiedGen", enabled, true):
+DocumentTools:-SetProperty("bypass", value, true):
+DocumentTools:-SetProperty("SimplifiedGen", enabled, false):
 DocumentTools:-SetProperty("SimplifiedGen", value, true):
-DocumentTools:-SetProperty("NoBound", enabled, true):
+DocumentTools:-SetProperty("SkipSingle", enabled, false):
+DocumentTools:-SetProperty("SkipSingle", value, false):
+DocumentTools:-SetProperty("Refine", enabled, false):
+DocumentTools:-SetProperty("NoBound", enabled, false):
 DocumentTools:-SetProperty("NoBound", value, false):
-DocumentTools:-SetProperty("Refine", enabled, true):
-
+DocumentTools:-SetProperty("UsingUpTo", enabled, false):
+DocumentTools:-SetProperty("MaxPermutations", enabled, false):
+DocumentTools:-SetProperty("Permutations", enabled, false):
 DocumentTools:-SetProperty("RunSIAN", enabled, true):
 DocumentTools:-SetProperty("RunSIAN", value, true):
-
-DocumentTools:-SetProperty("being_refined", caption, ""):
-
+DocumentTools:-SetProperty("being_refined", caption, "");
 DocumentTools:-SetProperty("sigma", value, "dx1/dt = a*x1 + x2*b + u(t);\ndx2/dt = x2*c + x1;\ny=x2"):
-
 DocumentTools:-SetProperty("example_box", value, "Custom"):
-# ChooseExample():
