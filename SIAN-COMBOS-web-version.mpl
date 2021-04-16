@@ -626,7 +626,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
         all_symbols_rhs, mu, x_vars, y_vars, u_vars, theta, subst_first_order,
         subst_zero_order, x_eqs, y_eqs, param, other_params, to_add, at_node,
         prime, max_rank, R, tr, e, p_local, xy_ders, polys_to_process, new_to_process, method, start, finish, infolevel,
-        num_nodes ,Et_x_vars, out_sian, var, G, P, solutions_table:
+        num_nodes ,Et_x_vars, out_sian, var, G, P, solutions_table, check:
 
   #----------------------------------------------
   # 0. Extract inputs, outputs, states, and parameters from the system
@@ -888,7 +888,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   for poly in Et_hat do
     Et_x_vars := Et_x_vars union { op(GetVars(poly, x_vars)) }:
   end do:
- # if infolevel > 1 then
+  if infolevel > 1 then
  #   LogText("%s %a %s %a %s\n", `The polynomial system \widehat{E^t} contains `, nops(Et_hat), `equations in `, nops(Et_x_vars) + nops(mu), ` variables`);
  # end if:
   Q_hat := subs(u_hat, Q):
@@ -1222,7 +1222,7 @@ local logsofar;
 end proc:
 
 examples := table([  
-  	"Biohydrogenation" = [ "Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\n Review: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (3) in Supplementary Material 2, initail conditions are assumed to be unknown",
+  	"Biohydrogenation" = [ "Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\n Review: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (3) in Supplementary Material 2, initial conditions are assumed to be unknown",
   	[
   "dx4/dt = - k5 * x4 / (k6 + x4);\n",
   "dx5/dt = k5 * x4 / (k6 + x4) - k7 * x5/(k8 + x5 + x6);\n",
