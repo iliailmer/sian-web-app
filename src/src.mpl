@@ -1,4 +1,3 @@
-
 ###############################################################################
 # Part 1: Algorithms for computation with subfields of rational functions
 ###############################################################################
@@ -15,7 +14,7 @@ end:
 
 FieldToIdeal := proc(gens)
     # Input: generators of a subfield of the field of rational functions
-    # Computes the MSQ ideal of the field with the new variables of the form x_aux
+    # Computes the MQS ideal of the field with the new variables of the form x_aux
     # See: https://mediatum.ub.tum.de/doc/685465/document.pdf Definition 2.16
     #      https://doi.org/10.1016/j.jsc.2005.09.010          Lemma 2.1
     local all_vars, subs_dupl, all_dupl, common_denom, polys, f, gb:
@@ -28,9 +27,11 @@ FieldToIdeal := proc(gens)
         common_denom := lcm(common_denom, denom(f)):
         polys := [op(polys), numer(f) * subs(subs_dupl, denom(f)) - subs(subs_dupl, numer(f)) * denom(f)]:
     end do:
-    # gb := Groebner[Basis]([op(polys), common_denom * t - 1], plex(t, op(all_dupl))):
+    #gb := Groebner[Basis]([op(polys), common_denom * t - 1], plex(t, op(all_dupl))):
+
     gb := Groebner[Basis]([op(polys), common_denom * t - 1], tdeg(t, op(all_dupl))):
     gb := Groebner[Walk](gb, tdeg(t, op(all_dupl)), lexdeg([t], [op(all_dupl)])):
+    
     gb := select(p -> not (t in indets(p)), gb):
     return PolynomialIdeal(gb, variables=all_dupl):
 end proc:
@@ -39,12 +40,12 @@ end proc:
 
 FieldCoefficientRestriction := proc(J, msq_for_subfield)
     # Input: J - a polynomial ideals over a field of rational functions
-    #        msq_for_subfield - the MSQ ideal for a subfield E of coefficients (see FieldToIdeal)
+    #        msq_for_subfield - the MQS ideal for a subfield E of coefficients (see FieldToIdeal)
     # Computes the radical of the restriction of the ideal to the subfield E 
     # in the sense of https://doi.org/10.1016/j.jsc.2005.09.010 (MSQ-paper in what follows)
     #
-    # NOTE: unlike the algorithm in the MSQ-paper, we compute the radical, not the restriction itself
-    # one can obtain the algorithm MSQ-paper by replacing PrimeDecomposition with PrimaryDecomposition 
+    # NOTE: unlike the algorithm in the MQS-paper, we compute the radical, not the restriction itself
+    # one can obtain the algorithm MQS-paper by replacing PrimeDecomposition with PrimaryDecomposition 
     # in the code below
     local poly_vars, coeff_vars, subs_aux, coeff_aux, gens, subs_aux_msq, gens_msq, msq_ideal_aux, 
     msq_components, J_ext, components, primes_to_keep, P, elim_P, comp, cleaned_ideal:
@@ -257,7 +258,7 @@ end proc:
 # by Kitonum 15364
 coefff:=proc(P, t)
     local L, H, i, k:
-    L:=[coeffs(P, indets(P), 'h')]: H:=[h]: k:=0:
+    L:=[coeffs(P, indets(P), 'h_aux_for_coef')]: H:=[h_aux_for_coef]: k:=0:
     for i from 1 to nops(H) do
         if H[i]=t then k:=L[i] fi:
     end do:
@@ -849,7 +850,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
       theta_l := [op(theta_l), param]:
     end if:
   end do:
- 
+  DocumentTools:-SetProperty("LocalLabel" , caption, "Locally Identifiable Paramters");
   if infolevel > 1 then
     LogText(sprintf("%s %a\n", `Locally identifiable paramters: `, map(x -> ParamToOuter(x, all_vars), theta_l)), output_targets[log]);
     LogText(sprintf("%s %a\n", `Nonidentifiable parameter: `, map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})])), output_targets[log]);
@@ -889,8 +890,8 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     Et_x_vars := Et_x_vars union { op(GetVars(poly, x_vars)) }:
   end do:
   if infolevel > 1 then
- #   LogText("%s %a %s %a %s\n", `The polynomial system \widehat{E^t} contains `, nops(Et_hat), `equations in `, nops(Et_x_vars) + nops(mu), ` variables`);
- # end if:
+    LogText(sprintf("%s %a %s %a %s\n", "The polynomial system contains", nops(Et_hat), "equations in ", nops(Et_x_vars) + nops(mu), " variables"), output_targets[log]);
+  end if:
   Q_hat := subs(u_hat, Q):
 
   vars := [
@@ -909,7 +910,6 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   if infolevel > 0 then
     PrintHeader("5. Assessing global identifiability"):
   end if:
-
   theta_g := []:
   if method = 1 then
     at_node := proc(var, args_node)
@@ -940,7 +940,6 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
         ]:
       end do:
     end if:
-
     for i from 1 to nops(theta_l) do
       if gb[i] = [1] then
         theta_g := [op(theta_g), theta_l[i]]:
@@ -953,9 +952,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   elif method = 2 then
      LogText(sprintf("%s %a\n", `Computing Groebner Basis with characteristic`, char), output_targets[log]):
     	gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)), characteristic=char);
-    # LogExpression(sprintf("%a", gb), output_targets[log]):
      for i from 1 to nops(theta_l) do
-      # LogExpression(sprintf("%a -> %a", Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars)), characteristic=char),  subs(theta_hat, theta_l[i]) mod char), output_targets[log]):
        if char>0 then
        	check := subs(theta_hat, theta_l[i]) mod char:
        else
@@ -983,6 +980,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     	end do:
      fi:
     	DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
+    	DocumentTools:-SetProperty(output_targets[localparams], value,  [op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))], 'refresh'): # global
   else
     LogText(sprintf(`No such method`), output_targets[log]):
     LogText(sprintf("%q\n", "Provided method: %d, allowed methods: 1, 2", method), output_targets[log]):
@@ -995,6 +993,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     LogText(sprintf("%s %a\n", `Not identifiable parameters:                      `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta))), output_targets[log]):
     LogText(sprintf("===============\n\n"), output_targets[log]):
   end if:
+   DocumentTools:-SetProperty("LocalLabel" , caption, "Locally but not Globally Identifiable Paramters");
   out_sian := table([
     globally = [op(map(x -> ParamToOuter(x, all_vars), theta_g))],
     locally_not_globally = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))},
@@ -1231,7 +1230,7 @@ examples := table([
   "y1 = x4;\n",
   "y2 = x5"]],
 
-  	"Chemical Reaction Network" = ["Example 6.1 in the paper 'Global Identifiability of Differential Models'\nTaken from  Conradi, C., Shiu, A., Dynamics of post-translational modification systems: recent progress and future directions Eq. 3.4)",
+  	"Chemical Reaction Network" = ["Taken from  Conradi, C., Shiu, A., Dynamics of post-translational modification systems: recent progress and future directions Eq. 3.4",
 	[
   "dx1/dt = -k1 * x1 * x2 + k2 * x4 + k4 * x6;\n",
   "dx2/dt = k1 * x1 * x2 + k2 * x4 + k3 * x4;\n",
@@ -1243,12 +1242,10 @@ examples := table([
   "y2 = x2;\n" ]],
 
 	"DAISY Ex. 3" = ["DAISY Example 3", [
-  "dx1/dt = -1 * p1 * x1 + x2 + u0;\n",
-  "dx2/dt = p3 * x1 - p4 * x2 + x3;\n",
+  "dx1/dt = -1 * p1 * x1 + p2 * x2 + u(t);\n",
+  "dx2/dt = p3 * x1 - p4 * x2 + p5 * x3;\n",
   "dx3/dt = p6 * x1 - p7 * x3;\n",
-  "du0/dt = 1;\n",
-  "y1 = x1;\n",
-  "y2 = u0;\n"]],
+  "y1 = x1;\n"]],
 
 	"DAISY_mamil3" = ["DAISY mamil 3",
 	[
@@ -1266,14 +1263,14 @@ examples := table([
 
 	"HIV" = ["Example (with initial conditions assumed being unknown) from Section IV of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies' by G. Bellu, M.P. Saccomani",
 	[
-  "dx1/dt = -beta * x1 * x4 - d * x1 + s;\n",
-  "dx2/dt = beta * q1 * x1 * x4 - k1 * x2 - mu1 * x2;\n",
-  "dx3/dt = beta * q2 * x1 * x4 + k1 * x2 - mu2 * x3;\n",
+  "dx1/dt = -b * x1 * x4 - d * x1 + s;\n",
+  "dx2/dt = b * q1 * x1 * x4 - k1 * x2 - mu1 * x2;\n",
+  "dx3/dt = b * q2 * x1 * x4 + k1 * x2 - mu2 * x3;\n",
   "dx4/dt = -c * x4 + k2 * x3;\n",
   "y1 = x1;\n",
   "y2 = x4"]],
 
-	"HIV2" = ["The system is taken from Wodarz, D., Nowak, M.\nMathematical models of HIV pathogenesis and treatment\nSystem (6)",
+	"HIV2" = ["The system is taken from Wodarz, D., Nowak, M.\nSpecific therapy regimes could lead to long-term immunological control of HIV\nhttps://doi.org/10.1073/pnas.96.25.14464\nPage 1",
 	[
   "dx/dt = lm - d * x - beta * x * v;\n",
   "dy/dt = beta * x * v - a * y;\n",
@@ -1294,10 +1291,10 @@ examples := table([
   "y2 = x2 + x3;\n",
   "y3 = x4"]],
 
-  	"LV" = ["",[
+  	"LV" = ["Lotka-Volterra System",[
   	"dx1/dt = a*x1 - b*x1*x2;\n", 
   	"dx2/dt = -c*x2 + d*x1*x2;\n",
-  	"y = x1 + u(t);\n"]],
+  	"y = x1;\n"]],
 	"OralGlucose" = ["Example (with initial conditions assumed being unknown) from Section III of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies'\nby G. Bellu, M.P. Saccomani",
 	[
   "dG/dt = -(p1 + X) * G + p1 * Gb + v * R;\n",
@@ -1394,7 +1391,7 @@ timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solution
 end proc:
 
 timed_Multi:=proc(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi)
-	local start, output, finish, data:
+	local start, output, finish, data, bound, generators:
 	start:=time():
 	bound, generators := op(MultiExperimentIdentifiableFunctions(model, simplified_generators, no_bound, simplify_bound, max_perms, output_targets_multi)):
 	finish:=time():
@@ -1495,3 +1492,12 @@ DocumentTools:-SetProperty("RunSIAN", value, true):
 DocumentTools:-SetProperty("being_refined", caption, "");
 DocumentTools:-SetProperty("sigma", value, "dx1/dt = a*x1 + x2*b + u(t);\ndx2/dt = x2*c + x1;\ny=x2"):
 DocumentTools:-SetProperty("example_box", value, "Custom"):
+DocumentTools:-SetProperty(reference, value, ""):
+DocumentTools:-SetProperty("LocalLabel" , caption, "Locally Identifiable Paramters");
+DocumentTools:-SetProperty(TxtOutput, visible, false);
+DocumentTools:-SetProperty(TxtOutput, value, "");
+DocumentTools:-SetProperty(SaveOutputLabel, visible, false);
+
+readyToSave:=false:
+counter:=0:
+exname:="Custom":
