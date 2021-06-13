@@ -617,7 +617,9 @@ end proc:
 #===============================================================================
 
 #===============================================================================
-IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions, char)#{p := 0.99, infolevel := 1, method := 2, num_nodes := 6}) 
+IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:=0, p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6})
+#IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions, char)
+	#{p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6}) 
 #===============================================================================
  local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
         sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible, 
@@ -626,14 +628,12 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
         poly_d, separant, leader, x_functions, y_functions, u_functions,
         all_symbols_rhs, mu, x_vars, y_vars, u_vars, theta, subst_first_order,
         subst_zero_order, x_eqs, y_eqs, param, other_params, to_add, at_node,
-        prime, max_rank, R, tr, e, p_local, xy_ders, polys_to_process, new_to_process, method, start, finish, infolevel,
-        num_nodes ,Et_x_vars, out_sian, var, G, P, solutions_table, check:
+        prime, max_rank, R, tr, e, p_local, xy_ders, polys_to_process, new_to_process, start, finish,
+        Et_x_vars, out_sian, var, G, P, solutions_table, check:
 
   #----------------------------------------------
   # 0. Extract inputs, outputs, states, and parameters from the system
   #----------------------------------------------
-  method := 2:
-  
   if SearchText(".", convert(system_ODEs, string)) <> 0 then
     LogText(sprintf("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"), "LogAreaSIAN"):
     WARNING("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"):
@@ -649,10 +649,10 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   end if:
   
   randomize():
-  infolevel:=1:
-  num_nodes:=1:
+#  infolevel:=1:
+#  num_nodes:=1:
   if infolevel > 0 then
-    PrintHeader("0. Extracting states, inputs, outputs, and parameters from the system"):
+    PrintHeader("0. Extracting states, inputs, outputs, and parameters from the system", output_targets[log]):
   end if:
   x_functions := map(f -> int(f, t), select( f -> type(int(f, t), function(name)), map(lhs, system_ODEs) )):
   y_functions := select( f -> not type(int(f, t), function(name)), map(lhs, system_ODEs) ):
@@ -678,7 +678,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   # at most 10^(-18) (for Maple 2017)
   p_local := p + nops(params_to_assess) * 10^(-18):
   if p_local >= 1 then
-    LogTextSIAN("The probability of success cannot exceed 1 - #params_to_assess 10^{-18}. We reset it to 0.99");
+    LogText("The probability of success cannot exceed 1 - #params_to_assess 10^{-18}. We reset it to 0.99", output_targets[log]);
     p_local := 0.99:
   end if:
 
@@ -696,7 +696,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   #----------------------------------------------
 
   if infolevel > 0 then
-    PrintHeader("1. Constructing the maximal polynomial system"):
+    PrintHeader("1. Constructing the maximal polynomial system",output_targets[log]):
   end if:
 
   # (a) ---------------
@@ -746,7 +746,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   #----------------------------------------------
 
   if infolevel > 0 then
-    PrintHeader("2. Truncating the polynomial system based on the Jacobian condition"):
+    PrintHeader("2. Truncating the polynomial system based on the Jacobian condition", output_targets[log]):
   end if:
 
   # (a) ---------------
@@ -836,7 +836,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   ##############################
 
   if infolevel > 0 then
-    PrintHeader("3. Assessing local identifiability"):
+    PrintHeader("3. Assessing local identifiability", output_targets[log]):
   end if:
  
   theta_l := []:
@@ -864,7 +864,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   #----------------------------------------------
 
   if infolevel > 0 then
-    PrintHeader("4. Randomizing the truncated system"):
+    PrintHeader("4. Randomizing the truncated system", output_targets[log]):
   end if:
 
   # (a) ------------
@@ -908,7 +908,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
   #----------------------------------------------
 
   if infolevel > 0 then
-    PrintHeader("5. Assessing global identifiability"):
+    PrintHeader("5. Assessing global identifiability", output_targets[log]):
   end if:
   theta_g := []:
   if method = 1 then
@@ -993,7 +993,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     LogText(sprintf("%s %a\n", `Not identifiable parameters:                      `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta))), output_targets[log]):
     LogText(sprintf("===============\n\n"), output_targets[log]):
   end if:
-   DocumentTools:-SetProperty("LocalLabel" , caption, "Locally but not Globally Identifiable Paramters");
+  DocumentTools:-SetProperty("LocalLabel" , caption, "Locally but not Globally Identifiable Paramters");
   out_sian := table([
     globally = [op(map(x -> ParamToOuter(x, all_vars), theta_g))],
     locally_not_globally = {op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))},
@@ -1004,17 +1004,19 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, cou
     allvars=vars,
     for_outer=all_vars
   ]):
-  PrintHeader("WARNING: The result of solution counting is guaranteed with high probability, however it NOT the same probability 'p' as provided in the input."):
+  if count_solutions then
+      PrintHeader("WARNING: The result of solution counting is guaranteed with high probability, however it NOT the same probability 'p' as provided in the input.", output_targets[log]):
+  end if:
   out_sian[num_solutions] := solutions_table:
   return out_sian;
 end proc:
 
 #===============================================================================
-PrintHeader := proc(text):
+PrintHeader := proc(text, output_target):
 #===============================================================================
-  LogText(sprintf("\n=======================================================\n"), "LogAreaSIAN"):
-  LogText(sprintf(text), "LogAreaSIAN"):
-  LogText(sprintf("\n=======================================================\n"), "LogAreaSIAN"):
+  LogText(sprintf("\n=======================================================\n"), output_target):
+  LogText(sprintf(text), output_target):
+  LogText(sprintf("\n=======================================================\n"), output_target):
 end proc:
 
 #===============================================================================
@@ -1384,7 +1386,8 @@ examples := table([
 timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions, char)
 	local output, data, start, finish:
 	start:= time():
-	output := IdentifiabilityODE(sigma, params_to_assess, p, output_targets_sian, count_solutions, char):
+  #IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets_sian, {char:=0, p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6})
+	output := IdentifiabilityODE(sigma, params_to_assess, output_targets_sian, char=char, p=p, count_solutions=count_solutions, infolevel=1, method=2, num_nodes=1):
 	finish:= time():
 	DocumentTools:-SetProperty(output_targets_sian[runningtime], value, convert(finish-start, string), 'refresh'): # time
 	return  output:
@@ -1500,4 +1503,4 @@ DocumentTools:-SetProperty(SaveOutputLabel, visible, false);
 
 readyToSave:=false:
 counter:=0:
-exname:="Custom":
+exname:="Custom"
