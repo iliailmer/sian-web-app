@@ -1,3 +1,190 @@
+###
+# Weights
+###
+
+# get rid of unerscore, e.g. x1(t) -> x1_ -> x1
+get_function_name := f -> parse(convert(FunctionToVariable(f), string)[..-2]):
+
+# check if depends on (t)
+is_function:= f->StringTools[Has](convert(f, string), "(t)"):
+idtfm := x->x;
+
+# check if is derivative
+is_diff := f->type(int(f, t), function(name)):
+
+lhs_name := ff -> if convert(ff, string)[-1] = "_" then parse(convert(ff, string)[..-2]) else ff; end if:
+
+get_state_name := proc(state, x_vars, mu)
+  local state_;
+  if state in mu then
+    return state;
+  end if;
+  state_ := parse(cat(StringTools[Join](StringTools[Split](convert(state, string), "_")[..-2], "_"), "_")):
+  if state_ in x_vars then
+    return state_;
+  end if:
+end proc:
+
+GetMinLevelBFS := proc(sigma)
+  # this part is copied from original SIAN code
+  local x_functions, y_functions, candidate_constants,
+  all_functions, all_symbols_rhs, xy_ders, u_functions, mu, x_vars,
+  y_vars, u_vars, subst_first_order, subst_zero_order, x_eqs, y_eqs,
+  n, m, s, x_zero_vars, all_vars, current_level, visible_states,
+  visibility_table, i, j, continue, poly_d, leader, separant, candidates,
+  each, differentiate_, k:
+
+  x_functions := map(f -> int(f, t), select( f -> type(int(f, t), function(name)), map(lhs, sigma) )):
+
+  y_functions := select( f -> not type(int(f, t), function(name)), map(lhs, sigma) ):
+  all_symbols_rhs := foldl(`union`, op( map(e -> indets(rhs(e)), sigma) )) minus {t}:
+  xy_ders := {op(x_functions), op(y_functions), op(select(f -> (f in all_symbols_rhs), map(lhs, sigma)))}:
+  u_functions := select( f -> type(f, function), convert(all_symbols_rhs minus xy_ders, list)):
+  mu := convert(all_symbols_rhs minus {op(xy_ders), op(u_functions)}, list):
+
+  x_vars := map(FunctionToVariable, x_functions):
+  y_vars := map(FunctionToVariable, y_functions):
+  u_vars := map(FunctionToVariable, u_functions):
+  subst_first_order := {seq(diff(x_functions[i], t) = MakeDerivative(x_vars[i], 1), i = 1 .. nops(x_vars))}:
+  subst_zero_order := {
+    seq(x_functions[i] = MakeDerivative(x_vars[i], 0), i = 1 .. nops(x_vars)),
+    seq(y_functions[i] = MakeDerivative(y_vars[i], 0), i = 1 .. nops(y_vars)),
+    seq(u_functions[i] = MakeDerivative(u_vars[i], 0), i = 1 .. nops(u_vars))
+  }:
+
+  x_zero_vars:= [seq(MakeDerivative(x_vars[i], 0), i = 1 .. nops(x_vars))]:
+  x_eqs := subs(subst_zero_order, subs(subst_first_order, select(e -> type(int(lhs(e), t), function(name)), sigma))):
+  y_eqs := subs(subst_zero_order, select(e -> not type(int(lhs(e), t), function(name)), sigma)):
+
+  n := nops(x_vars):
+  m := nops(y_vars):
+  s := nops(mu) + n:
+  all_vars := [ op(x_vars), op(y_vars), op(u_vars) ]:
+
+  # this part is new
+
+  current_level := 0:
+
+  # get functions on level 0, we consider parameters and states indistinguishable
+  # i.e. parameters are states with d/dt = 0
+  visible_states :=  foldl(`union`, op(map(x->indets(rhs(x)) minus {t}, y_eqs))); #select(f -> f in x_zero_vars, ); # map(x->parse(convert(x, string)[..-2]), select(f -> f in x_zero_vars, foldl(`union`, op(map(x->indets(rhs(x)), y_eqs))))):# cat(StringTools[Split](convert(x, string), "_")[1], "_")
+
+  # construct a hash table of "visibility"
+  visibility_table := table([seq(get_state_name(each, x_vars, mu)=current_level, each in visible_states)]):
+  # this is a flag array: if i-th position == 1 then we must differentiat i-th y(t) function
+  differentiate_ := [seq(1, i=1..nops(y_eqs))]:
+
+  for j from 1 to s + 1 do
+    # begin differentiation
+    current_level := current_level + 1:
+
+    # we don't want to go up s+1-th order of derivatives,
+    # we can terminate earlier once everything has been seen
+    continue:=true:
+
+    # for every y(t)-function
+    for i from 1 to m do
+      if differentiate_[i]=1 then
+        # if this equation is marked as to be differentiated then diff:
+        poly_d := numer(lhs(y_eqs[i]) - rhs(y_eqs[i])):
+        poly_d := Differentiate(poly_d, all_vars):
+        leader := MakeDerivative(y_vars[i], j):
+        separant := diff(poly_d, leader):
+        poly_d := simplify(leader - subs(x_eqs, -(poly_d - separant * leader) / separant)):
+
+        # save the new equation
+        y_eqs[i]:= leader = simplify(poly_d - leader);#(poly_d - separant * leader) / separant:
+
+        # treat everything as states, retrieve all indets at current level
+        candidates := select(x-> not (GetOrderVar(x)[1]  in y_vars), indets(y_eqs[i])):
+
+        # if found at least one new rhs element then we will diff that function again
+        # else we will skip this in the future
+        if op(map(x->not assigned(visibility_table[get_state_name(x, x_vars, mu)]), candidates)) <> NULL then
+          continue := foldl(`or`, op(map(x->not assigned(visibility_table[get_state_name(x, x_vars, mu)]), candidates))):
+        else
+          continue := false;
+        fi:
+        if continue then
+          # if current function will need more orders of differentiation
+          differentiate_[i]:=1:
+        else
+          differentiate_[i]:=0:
+        fi:
+        # assign visibility
+        for each in candidates do
+          if not assigned(visibility_table[get_state_name(each, x_vars, mu)]) then
+              visibility_table[get_state_name(each, x_vars, mu)] := current_level:
+          fi:
+        od;
+      fi:
+    od:
+    # check if this needs to be repeated
+    if add(k, k in differentiate_)=0 then
+        break:
+    fi:
+  od:
+  return visibility_table;
+end proc:
+
+SubsByDepth := proc(sigma, poly_system, poly_vars, non_id, {trdegsub:=false})
+  local counting_table_states, min_count, vts, rhs_terms, max_possible,
+        rhs_term, indets_, term, substitutions, each, alg_indep, original_et_hat,
+        all_subs, names, selection, other, all_odes, each_ode;
+
+  #out := GetPolySystem(sigma, GetParameters(sigma), sub_transc=trdegsub):#CodeTools[Usage](, output=[`output`,`bytesused`,`cputime`,`realtime`]):
+  #system_vars, non_id, sigma_new, alg_indep := out[1], out[2], out[3], out[4];
+
+  #printf("\n\nGetPolySystem Usage (real, cpu, memory):\t%a,\t%a,\t%a\n\n", real_time, cpu_time, mem):
+
+  vts := GetMinLevelBFS(sigma):
+  #printf("%s:\t%a\n", `States for substitution`, [entries(vts, `pairs`)]);
+  #printf("%s:\t%a\n", `NonID parameters`, non_id);
+  substitutions := table([]);
+  all_odes := map(x->expand(rhs(x)), select(f->is_diff(lhs(f)), sigma));
+  rhs_terms := []:
+  for each_ode in all_odes do
+    if whattype(each_ode) in [`+`,`*`,`^`] then
+      rhs_terms := [op(rhs_terms), op(each_ode)];
+    end if;
+    if whattype(each_ode) in [function] then
+     rhs_terms := [op(rhs_terms), (each_ode)];
+    end if;
+  end do;
+
+  max_possible := max(map(rhs, [entries(vts, `pairs`)]));
+  for rhs_term in rhs_terms do
+    indets_ := convert(indets(rhs_term) minus {t}, list):
+    for term in indets_ do
+      if is_function(term) then
+        if assigned(vts[FunctionToVariable(term)]) then
+          substitutions[FunctionToVariable(term)] := vts[FunctionToVariable(term)]+1: #min(3, ):
+        end if;
+      else
+        if not term in non_id and vts[term]=max_possible and assigned(vts[term]) then #
+          substitutions[term] := vts[term]+1: #min(3, ):
+        end if;
+      end if:
+    end do;
+  end do:
+  substitutions[z_aux]:=min(3, max_possible):
+  printf("%s:\t%a\n", `Substitutions`, [entries(substitutions, `pairs`)]);
+  original_et_hat := poly_system:
+  new_et_hat := poly_system:
+  all_subs := {}:
+  names := [indices(substitutions, `nolist`)];
+  for each in names do #system_vars[2] do
+    selection := select(sys_var->StringTools[IsPrefix](convert(each, string), sys_var), poly_vars);
+    for other in selection do
+        new_et_hat := subs({other = other^substitutions[each]}, new_et_hat):
+        all_subs := all_subs union {other = other^substitutions[each]}:
+    end do;
+  od:
+  return all_subs, new_et_hat, poly_vars, original_et_hat; # alg_indep
+end proc:
+
+
+
 ###############################################################################
 # Part 1: Algorithms for computation with subfields of rational functions
 ###############################################################################
@@ -20,7 +207,7 @@ FieldToIdeal := proc(gens)
     local all_vars, subs_dupl, all_dupl, common_denom, polys, f, gb:
     all_vars := indets(gens):
     subs_dupl := map(v -> v = cat(v, _aux), all_vars):
-    all_dupl := map(v -> subs(subs_dupl, v), all_vars):
+    all_dupl := sort([op(map(v -> subs(subs_dupl, v), all_vars))]):
     common_denom := 1:
     polys := []:
     for f in gens do
@@ -29,9 +216,9 @@ FieldToIdeal := proc(gens)
     end do:
     #gb := Groebner[Basis]([op(polys), common_denom * t - 1], plex(t, op(all_dupl))):
 
-    gb := Groebner[Basis]([op(polys), common_denom * t - 1], tdeg(t, op(all_dupl))):
+    gb := Groebner[Basis]([op(polys), subs(subs_dupl, common_denom) * t - 1], tdeg(t, op(all_dupl))):
     gb := Groebner[Walk](gb, tdeg(t, op(all_dupl)), lexdeg([t], [op(all_dupl)])):
-    
+
     gb := select(p -> not (t in indets(p)), gb):
     return PolynomialIdeal(gb, variables=all_dupl):
 end proc:
@@ -41,13 +228,13 @@ end proc:
 FieldCoefficientRestriction := proc(J, msq_for_subfield)
     # Input: J - a polynomial ideals over a field of rational functions
     #        msq_for_subfield - the MQS ideal for a subfield E of coefficients (see FieldToIdeal)
-    # Computes the radical of the restriction of the ideal to the subfield E 
+    # Computes the radical of the restriction of the ideal to the subfield E
     # in the sense of https://doi.org/10.1016/j.jsc.2005.09.010 (MSQ-paper in what follows)
     #
     # NOTE: unlike the algorithm in the MQS-paper, we compute the radical, not the restriction itself
-    # one can obtain the algorithm MQS-paper by replacing PrimeDecomposition with PrimaryDecomposition 
+    # one can obtain the algorithm MQS-paper by replacing PrimeDecomposition with PrimaryDecomposition
     # in the code below
-    local poly_vars, coeff_vars, subs_aux, coeff_aux, gens, subs_aux_msq, gens_msq, msq_ideal_aux, 
+    local poly_vars, coeff_vars, subs_aux, coeff_aux, gens, subs_aux_msq, gens_msq, msq_ideal_aux,
     msq_components, J_ext, components, primes_to_keep, P, elim_P, comp, cleaned_ideal:
 
     poly_vars := IdealInfo[Variables](J):
@@ -64,9 +251,9 @@ FieldCoefficientRestriction := proc(J, msq_for_subfield)
     msq_ideal_aux := PolynomialIdeal(gens_msq, variables=map(s -> rhs(s), subs_aux_msq)):
     msq_components := [PrimeDecomposition(msq_ideal_aux)]:
 
-    J_ext := PolynomialIdeal([op(gens), op(gens_msq)], variables=poly_vars union coeff_aux): 
+    J_ext := PolynomialIdeal([op(gens), op(gens_msq)], variables=poly_vars union coeff_aux):
     components := [PrimeDecomposition(J_ext)]:
-    
+
     # Selecting prime components as in Remark on page 377 in MSQ-paper
     primes_to_keep := []:
     for P in components do
@@ -77,7 +264,7 @@ FieldCoefficientRestriction := proc(J, msq_for_subfield)
             if elim_P subset comp then
                 primes_to_keep := [op(primes_to_keep), P]:
             end if:
-        end do: 
+        end do:
     end do:
     if nops(primes_to_keep) > 0 then
         cleaned_ideal := Intersect(op(primes_to_keep)):
@@ -173,7 +360,7 @@ with(DifferentialAlgebra):
 
 ExtractDenominator := proc(model)
     # Input: model a list of rational functions
-    # returns the function multiplied by their denominators and 
+    # returns the function multiplied by their denominators and
     # an inequality corresponding to the LCM of the denominators
     local common_denom, r;
     common_denom := 1:
@@ -213,13 +400,13 @@ GetIOEquations := proc(model, states, inputs, outputs, params, use_brackets, inf
     Rorig := DifferentialRing(blocks = [[op(outputs)], [op(states)], [op(inputs)]], derivations = [t], arbitrary = params):
            # DifferentialRing(blocks = [[op(inputs)], [op(outputs)], [op(states)]], derivations = [t], arbitrary = params):
     chset_orig := RosenfeldGroebner(model, Rorig)[1]:
-    
- 
+
+
     if infolevel > 0 then
         LogText(sprintf("    Computing the characteristic set (singsol = none)\n"), target):
     end if:
     charsets := RosenfeldGroebner(model, Relim, singsol = none):
-    if CheckReducibilitySet(Equations(charsets[1]), chset_orig) then        
+    if CheckReducibilitySet(Equations(charsets[1]), chset_orig) then
         gen_comp := charsets[1]:
     else
         if infolevel > 0 then
@@ -253,7 +440,7 @@ end proc:
 
 #===============================================================================
 
-# Adapted from 
+# Adapted from
 # https://www.mapleprimes.com/questions/36772-Extract-Specific-Coefficients-Of-A-Multivariate
 # by Kitonum 15364
 coefff:=proc(P, t)
@@ -269,8 +456,8 @@ end proc:
 
 DecomposePolynomial := proc(p, vars_main, vars_coef, infolevel, target)
     # Input: p - polynomial in two groups of variables: vars_main and vars_coef
-    # Computes a decomposition of minimal length of p as a linear combination 
-    # of products A * B, where A is a polynomial in vars_main and B 
+    # Computes a decomposition of minimal length of p as a linear combination
+    # of products A * B, where A is a polynomial in vars_main and B
     # is a polynomial in vars_coef return two lists: list of A's and list of B's
     local cf, monoms, result_cf, result_monom, i, c, m, j, lc, lm, coeff_in_c:
     cf := [coeffs(collect(p, vars_main, 'distributed'), vars_main, 'monoms')]:
@@ -331,7 +518,7 @@ ConstructWronskian := proc(io_eq, model, states, inputs, outputs, params, state_
     Rorig := DifferentialRing(blocks = [[op(outputs)], [op(states)], [op(inputs)]], derivations = [t], arbitrary = params):
            # DifferentialRing(blocks = [[op(inputs)], [op(outputs)], [op(states)]], derivations = [t], arbitrary = params):
     chset_orig := RosenfeldGroebner(model, Rorig)[1]:
-    
+
     if infolevel > 0 then
         LogText(sprintf("    Computing the Wronskian\n"), target):
     end if:
@@ -364,7 +551,7 @@ ConstructWronskian := proc(io_eq, model, states, inputs, outputs, params, state_
         yus_reduced:=Threads:-Seq[tasksize=nops(yus_list)](getNormalForm(yus_list[i], chset_orig), i =1..nops(yus_list)):
         # yus_reduced := map(p -> p = NormalForm(p, chset_orig), yus):
     end if:
-    
+
     # iofun:=map(y->parse(cat(convert(y, string), "(t)")), ios):
     # derivative_orders:=table([seq(p=0, p in iofun)]):
     # for each in yus_list do
@@ -393,7 +580,7 @@ ConstructWronskian := proc(io_eq, model, states, inputs, outputs, params, state_
     #     count:=0:
     # end do:
 
-    
+
     M_sub := subs(yus_reduced, M):
     M_sub := subs(map(x -> parse(cat(x, "(t)")) = x, states), M_sub):
     return [M_sub, decomp[1]]:
@@ -404,12 +591,13 @@ end proc:
 SingleExperimentIdentifiableFunctions := proc(model, output_targets, {infolevel := 1})
     # Input: model - ODE model represented as a list of differential polynomials
     # Computes generators of the field of single-identifiable functions
-    local result, start, finish, states, inputs, outputs, model_eq, ios, params, io_eqs, si_gens, eq, wrnsk, echelon_form, model_denomfree, target: 	
+    local result, start, finish, states, inputs, outputs, model_eq, ios, params, io_eqs, si_gens, eq, wrnsk, echelon_form, model_denomfree, target:
     states, inputs, outputs, params, model_eq := op(ParseInput_(model)): # states, ios, params := op(ParseInput_(model)):
     ios := [op(inputs), op(outputs)]:
-
+    LogText(sprintf("\n---------------------------------\nRunning Single-Experiment ID check:\n---------------------------------"), ProgressBar):
     # Step 1
     if infolevel > 0 then
+    	   LogText(sprintf("\t=> Step 1: Computing input-output equations"), ProgressBar):
         LogText(sprintf("SE Step 1: Computing input-output equations\n"), output_targets[log]):
     end if:
     model_denomfree := ExtractDenominator(model_eq):
@@ -423,11 +611,13 @@ SingleExperimentIdentifiableFunctions := proc(model, output_targets, {infolevel 
 	        # Step 2
 	        if infolevel > 0 then
 	            LogText(sprintf("SE Step 2: Constructing the Wronskian\n"), output_targets[log]):
+	            LogText(sprintf("\t=> Step 2: Constructing the Wronskian"), ProgressBar):
 	        end if:
 	        wrnsk := ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, [], infolevel, output_targets[log])[1]:
 	        # Step 3
 	        if infolevel > 0 then
 	            LogText(sprintf("SE Step 3: Computing the reduced row echelon form of the Wronskian\n"), output_targets[log]):
+	            LogText(sprintf("\t=> Step 3: Computing the reduced row echelon form of the Wronskian"), ProgressBar):
 	        end if:
 	        echelon_form := LinearAlgebra[ReducedRowEchelonForm](wrnsk):
 	        si_gens := {op(si_gens), op(select(x -> not type(x, numeric), convert(echelon_form, list)))}:
@@ -436,6 +626,7 @@ SingleExperimentIdentifiableFunctions := proc(model, output_targets, {infolevel 
     # Step 4
     if infolevel > 0 then
         LogText(sprintf("SE Step 4: restricting to the field of parameters"), output_targets[log]):
+        LogText(sprintf("\t=> Step 4: restricting to the field of parameters"), ProgressBar):
     end if:
     	result:=map(simplify, convert(FilterGenerators(FieldIntersection(si_gens, params)), list)):
 	DocumentTools:-SetProperty(output_targets[single], expression, result, 'refresh'):
@@ -479,15 +670,15 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
     #                            but this takes time
     # 2. no_bound - if True, then bound for the number of experiments is not computed (may save a lot of time)
 
-    local states, inputs, outputs, ios, params, model_eqs, io_eqs, io_coeffs, io_coef, wrnsk, s, roll, wrnsk_sub, r, bound, 
-    generators, i, eq, result, model_denomfree, target, start, finish, infolevel, use_brackets, output_permutations, 
+    local states, inputs, outputs, ios, params, model_eqs, io_eqs, io_coeffs, io_coef, wrnsk, s, roll, wrnsk_sub, r, bound,
+    generators, i, eq, result, model_denomfree, target, start, finish, infolevel, use_brackets, output_permutations,
     outputs_, io_coeffs_sb, io_eqs_sb, bound_sb, skip_simplify, result_sb, best_output_ordering, returned_generators, idx, old_bound:
-
+    LogText(sprintf("\n---------------------------------\nRunning Multi-Experiment ID check:\n---------------------------------"), ProgressBar):
     states, inputs, outputs, params, model_eqs := op(ParseInput_(model)):
     use_brackets:=false:
     output_permutations := combinat[permute](outputs):
     output_permutations:= output_permutations[..min(nops(output_permutations),max_perms)];
-    
+
     infolevel := 1:
     model_denomfree := ExtractDenominator(model_eqs):
     skip_simplify := false:
@@ -500,13 +691,14 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
 	    	   LogText(sprintf("Use Brackets?\t%a\n", use_brackets), output_targets[log]):
 	        if infolevel > 0 then
 	            LogText(sprintf("ME Computing input-output equations\n"), output_targets[log]):
+	            LogText(sprintf("\t=> Computing input-output equations"), ProgressBar):
 	   	   end if:
 	   	   io_eqs := GetIOEquations(model_denomfree, states, inputs, outputs, params, use_brackets, infolevel, output_targets[log]):
 	   	   if infolevel > 0 then
 	            LogText(sprintf("ME Total number of io-equations: %a\n", nops(io_eqs)), output_targets[log]):
 	        end if:
 	        io_coeffs := []:
-	        
+
 	        for eq in io_eqs do
 	            io_coef := DecomposePolynomial(eq, indets(eq) minus {op(params)}, params, infolevel, output_targets[log])[1]:
 	            io_coeffs := [op(io_coeffs), io_coef]:
@@ -524,6 +716,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
                   for eq in io_eqs do
                       if infolevel > 0 then
                           LogText(sprintf("ME Constructing the Wronskian\n"), output_targets[log]):
+                          LogText(sprintf("\t=> Constructing the Wronskian"), ProgressBar):
                       end if:
                       wrnsk, io_coef := op(ConstructWronskian(eq, model_denomfree, states, inputs, outputs, params, model, infolevel, output_targets[log])):
                       # in the notation of the theorem
@@ -580,6 +773,7 @@ MultiExperimentIdentifiableFunctions := proc(model, simplified_generators, no_bo
          end if:
     end do:
     DocumentTools:-SetProperty("being_refined", caption, "", 'refresh'):
+    LogText(sprintf("----------------------\nMulti-Experiment ID done"), ProgressBar):
     return [bound, returned_generators];#table([bd=bound]):
 end proc:
 
@@ -599,46 +793,47 @@ GetPSSolution := proc(model, ord)
     x_funcs := map(x -> parse(cat(x, "(t)")), states):
     x_sols := map(x -> x = roll(), x_funcs):
     x_eqs := map(x -> subs(model_sub, diff(x, t)), x_funcs):
-    
+
     for cur_ord from 1 to ord do
         for i from 1 to nops(x_funcs) do
             rhs_eval := series(subs(x_sols, x_eqs[i]), t, ord + 1):
             x_sols[i] := (lhs(x_sols[i]) = (rhs(x_sols[i]) + t^cur_ord * coeff(rhs_eval, t, cur_ord - 1) / cur_ord)):
         end do:
     end do:
-  
+
     total_sub := [op(x_sols), op(params_subs), op(input_subs)]:
     y_funcs := map(y -> parse(cat(y, "(t)")), outputs):
     y_sols := map(y -> y = subs(total_sub, subs(model_sub, y)), y_funcs):
-  
+
     return [op(y_sols), op(input_subs), op(params_subs), op(x_sols)]:
 end proc:
 
 #===============================================================================
 
 #===============================================================================
-IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:=0, p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6})
+IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {p := 0.99, count_solutions := true,  char := 0, use_weights:=false})
 #IdentifiabilityODE := proc(system_ODEs, params_to_assess, p, output_targets, count_solutions, char)
-	#{p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6}) 
+	#{p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6})
 #===============================================================================
- local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1, 
-        sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible, 
-        eqs_i, JacX, vars, vars_to_add, ord_var, var_index, deg_variety, D2, 
-        y_hat, u_hat, theta_hat, Et_hat, Q_hat, theta_l, theta_g, gb, v, X_eq, Y_eq, 
+ local i, j, k, n, m, s, all_params, all_vars, eqs, Q, X, Y, poly, d0, D1,
+        sample, all_subs,alpha, beta, Et, x_theta_vars, prolongation_possible,
+        eqs_i, JacX, vars, vars_to_add, ord_var, var_index, deg_variety, D2,
+        y_hat, u_hat, theta_hat, Et_hat, Q_hat, theta_l, theta_g, gb, v, X_eq, Y_eq,
         poly_d, separant, leader, x_functions, y_functions, u_functions,
         all_symbols_rhs, mu, x_vars, y_vars, u_vars, theta, subst_first_order,
         subst_zero_order, x_eqs, y_eqs, param, other_params, to_add, at_node,
         prime, max_rank, R, tr, e, p_local, xy_ders, polys_to_process, new_to_process, start, finish,
-        Et_x_vars, out_sian, var, G, P, solutions_table, check:
+        Et_x_vars, weight_subs, out_sian, var, G, P, solutions_table, check, out_weights:
 
   #----------------------------------------------
   # 0. Extract inputs, outputs, states, and parameters from the system
   #----------------------------------------------
+  LogText(sprintf("Running SIAN:\n-------------"), ProgressBar):
   if SearchText(".", convert(system_ODEs, string)) <> 0 then
     LogText(sprintf("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"), "LogAreaSIAN"):
     WARNING("WARNING: It looks like your system involves floating-point numbers. This may result into a non-meaninful result, please convert them to rationals (e.g., 0.2 -> 1/5)"):
   end if:
-  
+
   if not (indets(system_ODEs, name) subset indets(system_ODEs)) then
     LogText(sprintf(cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))), output_targets[log]):
     DocumentTools:-SetProperty("GlobalParams1", expression, Error(BadName)):
@@ -647,12 +842,16 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
     error (cat("ERROR: you are using reserved maple symbols: ", convert(indets(system_ODEs, name) minus indets(system_ODEs), string))):
     return;
   end if:
-  
+
   randomize():
 #  infolevel:=1:
 #  num_nodes:=1:
+  infolevel := 1:
+  method := 2:
+  num_nodes := 6:
   if infolevel > 0 then
     PrintHeader("0. Extracting states, inputs, outputs, and parameters from the system", output_targets[log]):
+    LogText(sprintf("\t=> Step 0. Extracting states, inputs, outputs, and parameters from the system"), ProgressBar):
   end if:
   x_functions := map(f -> int(f, t), select( f -> type(int(f, t), function(name)), map(lhs, system_ODEs) )):
   y_functions := select( f -> not type(int(f, t), function(name)), map(lhs, system_ODEs) ):
@@ -674,7 +873,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
   x_eqs := subs(subst_zero_order, subs(subst_first_order, select(e -> type(int(lhs(e), t), function(name)), system_ODEs))):
   y_eqs := subs(subst_zero_order, select(e -> not type(int(lhs(e), t), function(name)), system_ODEs)):
 
-  # taking into account that fact that Groebner[Basis] is Monte Carlo with probability of error 
+  # taking into account that fact that Groebner[Basis] is Monte Carlo with probability of error
   # at most 10^(-18) (for Maple 2017)
   p_local := p + nops(params_to_assess) * 10^(-18):
   if p_local >= 1 then
@@ -683,12 +882,12 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
   end if:
 
   if infolevel > 0 then
-    LogText(sprintf("\n===== Input info =====\n"), output_targets[log]): 
-    LogText(sprintf("%s %a\n", `State variables:         `, x_functions), output_targets[log]): 
-    LogText(sprintf("%s %a\n", `Output variables:        `, y_functions), output_targets[log]): 
-    LogText(sprintf("%s %a\n", `Input variables:         `, u_functions), output_targets[log]): 
-    LogText(sprintf("%s %a\n", `Parameters in equations: `, mu), output_targets[log]): 
-    LogText(sprintf("===================\n\n"), output_targets[log]): 
+    LogText(sprintf("\n===== Input info =====\n"), output_targets[log]):
+    LogText(sprintf("%s %a\n", `State variables:         `, x_functions), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Output variables:        `, y_functions), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Input variables:         `, u_functions), output_targets[log]):
+    LogText(sprintf("%s %a\n", `Parameters in equations: `, mu), output_targets[log]):
+    LogText(sprintf("===================\n\n"), output_targets[log]):
   end if:
 
   #----------------------------------------------
@@ -697,6 +896,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
 
   if infolevel > 0 then
     PrintHeader("1. Constructing the maximal polynomial system",output_targets[log]):
+    LogText(sprintf("\t=> Step 1.  Constructing the maximal polynomial system"), ProgressBar):
   end if:
 
   # (a) ---------------
@@ -707,7 +907,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
   all_vars := [ op(x_vars), op(y_vars), op(u_vars) ]:
   eqs := [op(x_eqs), op(y_eqs)]:
   Q := foldl( (f, g) -> lcm(f, g), op( map(f -> denom(rhs(f)), eqs) )):
-  
+
 
   # (b,c) ---------------
   X := []:
@@ -724,7 +924,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
     end do:
   end do:
   # LogExpression(X[1]);
-  
+
   # (d,e) ---------------
   Y := []:
   Y_eq := []:
@@ -747,6 +947,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
 
   if infolevel > 0 then
     PrintHeader("2. Truncating the polynomial system based on the Jacobian condition", output_targets[log]):
+    LogText(sprintf("\t=> Step 2. Truncating the polynomial system based on the Jacobian condition"), ProgressBar):
   end if:
 
   # (a) ---------------
@@ -766,7 +967,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
   all_subs := sample[4]:
   u_hat := sample[2]:
   y_hat := sample[1]:
- 
+
   # (e) ------------------
   alpha := [seq(1, i = 1..n)]:
   beta := [seq(0, i = 1..m)]:
@@ -807,7 +1008,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
         else
           prolongation_possible[i] := 0;
         end if:
-      end if: 
+      end if:
     end do:
   end do:
   # is used for assessing local identifiabilty
@@ -828,7 +1029,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
       end if:
     end do:
   end do:
- 
+
   if infolevel > 1 then
     LogText(sprintf("%s %a\n", `Orders of prolongations of the outputs (beta) = `, beta), output_targets[log]):
     LogText(sprintf("%s %a\n", `Orders of prolongations of the state variables (alpha) = `, alpha), output_targets[log]):
@@ -837,13 +1038,14 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
 
   if infolevel > 0 then
     PrintHeader("3. Assessing local identifiability", output_targets[log]):
+    LogText(sprintf("\t=> Step 3. Assessing local identifiability"), ProgressBar):
   end if:
- 
+
   theta_l := []:
   for param in theta do
     other_params := subs(param = NULL, x_theta_vars):
-    JacX := VectorCalculus[Jacobian]( 
-        subs( { op(u_hat), param = subs(all_subs, param), op(y_hat) }, Et), 
+    JacX := VectorCalculus[Jacobian](
+        subs( { op(u_hat), param = subs(all_subs, param), op(y_hat) }, Et),
         other_params = subs(all_subs, other_params)
     ):
     if LinearAlgebra[Rank](JacX) <> max_rank then
@@ -865,6 +1067,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
 
   if infolevel > 0 then
     PrintHeader("4. Randomizing the truncated system", output_targets[log]):
+    LogText(sprintf("\t=> Step 4. Randomizing the truncated system"), ProgressBar):
   end if:
 
   # (a) ------------
@@ -899,16 +1102,36 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
     z_aux, w_aux,
     op(sort(mu))
   ]:
+
+  ###########
+  non_id := map(x -> ParamToOuter(x, all_vars), [op({op(theta)} minus {op(theta_l)})]):
+  if use_weights then
+  	if infolevel > 0 then
+    		PrintHeader("Applying Weighted Ordering", output_targets[log]):
+    		LogText(sprintf("\t=> Applying Weighted Ordering"), ProgressBar):
+  	end if:
+	weight_subs, poly_system, poly_vars, original_et_hat := SubsByDepth(system_ODEs, [op(Et_hat), z_aux * Q_hat - 1], vars, non_id);
+	Et_hat := poly_system;
+	weights_table := table(weight_subs);
+	LogExpression(sprintf("%q\n",  weights_table), "LogAreaSIAN");
+  else
+  	weights_table := table([seq(_var_=_var_, _var_ in vars)]);
+  	Et_hat := [op(Et_hat), z_aux * Q_hat - 1]:
+  end if;
+  ###########
+
+
   if infolevel > 1 then
     LogText(sprintf("Variable ordering to be used for Groebner basis computation %a\n", vars), output_targets[log]);
   end if:
- 
+
   #----------------------------------------------
   # 4. Determine.
   #----------------------------------------------
 
   if infolevel > 0 then
     PrintHeader("5. Assessing global identifiability", output_targets[log]):
+    LogText(sprintf("\t=> Step 5. Assessing global identifiability"), ProgressBar):
   end if:
   theta_g := []:
   if method = 1 then
@@ -932,11 +1155,11 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
       gb := []:
       for i from 1 to nops(theta_l) do
         gb := [
-          op(gb), 
+          op(gb),
           at_node(
-            theta_l[i], 
+            theta_l[i],
             [[op(Et_hat), z_aux * Q_hat - 1, (theta_l[i] - subs(theta_hat, theta_l[i])) * w_aux - 1], tdeg(op(vars))]
-           ) 
+           )
         ]:
       end do:
     end if:
@@ -948,21 +1171,28 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
           LogText(sprintf("%s %a %s %a\n", `Groebner basis corresponding to the parameter `, theta_l[i], ` is `, gb[i]), output_targets[log]):
         end if:
       end if:
-    end do:    
+    end do:
   elif method = 2 then
      LogText(sprintf("%s %a\n", `Computing Groebner Basis with characteristic`, char), output_targets[log]):
-    	gb := Groebner[Basis]([op(Et_hat), z_aux * Q_hat - 1], tdeg(op(vars)), characteristic=char);
+    	# [op(Et_hat), z_aux * Q_hat - 1], because Et_hat already contains z_aux * Q_hat - 1
+    	gb := Groebner[Basis](Et_hat, tdeg(op(vars)), characteristic=char);
+     #if use_weights then
+     	# backsub
+     	# LogExpression(sprintf("%q\n%q", {seq(rhs(each)=lhs(each), each in weight_subs)}), "LogAreaSIAN");
+     #	gb := subs({seq(rhs(each)=lhs(each), each in weight_subs)}, gb);
+     #end if:
      for i from 1 to nops(theta_l) do
        if char>0 then
        	check := subs(theta_hat, theta_l[i]) mod char:
        else
        	check := subs(theta_hat, theta_l[i]):
        end if:
-       if Groebner[NormalForm](theta_l[i], gb, tdeg(op(vars)), characteristic=char) = check then
-         theta_g := [ op(theta_g), theta_l[i] ]:
+       if Groebner[NormalForm](theta_l[i]^degree(weights_table[theta_l[i]]), gb, tdeg(op(vars)), characteristic=char) = check then
+         	theta_g := [op(theta_g), theta_l[i]]:
        end if:
      end do:
-
+    DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
+    DocumentTools:-SetProperty(output_targets[localparams], value,  [op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))], 'refresh'): # local
     if count_solutions then
      LogParameters("",output_targets[parameters]):
     	for var in theta_g do
@@ -970,17 +1200,17 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
 		LogParameters(sprintf("%s %a, %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `number of solutions:`, 1), output_targets[parameters]):
 		solutions_table[var]:=1:
     	end do:
-	
+
     	for var in select(p -> not p in theta_g, theta_l) do
 		G := Groebner[Walk](gb, tdeg(op(vars)), lexdeg([op({op(vars)} minus {var})], [var]), characteristic=char):
 		P := select(x->evalb(indets(x)={var}), G):
-		solutions_table[var]:=degree(P[1], [op(indets(P))]): 
+		# LogExpression(sprintf("%q\n%q", P), "LogAreaSIAN");
+		solutions_table[var]:=degree(P[1], [op(indets(P))])/weights_table[var]:
 		LogText(sprintf("%s %a, %s %a\n",`The number of solutions for`, var, `is`, degree(P[1], [op(indets(P))])), output_targets[log]):
 		LogParameters(sprintf("%s %a, %s %a\n",`Parameter`, ParamToOuter(var, all_vars), `number of solutions:`, degree(P[1], [op(indets(P))])),  output_targets[parameters])
     	end do:
      fi:
-    	DocumentTools:-SetProperty(output_targets[globalparams], value,  [op(map(x -> ParamToOuter(x, all_vars), theta_g))], 'refresh'): # global
-    	DocumentTools:-SetProperty(output_targets[localparams], value,  [op(map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_g, theta_l)))], 'refresh'): # global
+
   else
     LogText(sprintf(`No such method`), output_targets[log]):
     LogText(sprintf("%q\n", "Provided method: %d, allowed methods: 1, 2", method), output_targets[log]):
@@ -993,6 +1223,7 @@ IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets, {char:
     LogText(sprintf("%s %a\n", `Not identifiable parameters:                      `, map(x -> ParamToOuter(x, all_vars), select(p -> not p in theta_l, theta))), output_targets[log]):
     LogText(sprintf("===============\n\n"), output_targets[log]):
   end if:
+  LogText(sprintf("-------------\nSIAN Finished."), ProgressBar):
   DocumentTools:-SetProperty("LocalLabel" , caption, "Locally but not Globally Identifiable Paramters");
   out_sian := table([
     globally = [op(map(x -> ParamToOuter(x, all_vars), theta_g))],
@@ -1068,7 +1299,7 @@ end proc:
 
 
 #===============================================================================
-DifferentiateOnce := proc(diff_poly, var_list) 
+DifferentiateOnce := proc(diff_poly, var_list)
 #===============================================================================
   local result, aux, v, h, diff_v:
   result := 0:
@@ -1086,7 +1317,7 @@ end proc:
 
 
 #===============================================================================
-Differentiate := proc(diff_poly, var_list, ord := 1) 
+Differentiate := proc(diff_poly, var_list, ord := 1)
 #===============================================================================
   local result, i;
   result := diff_poly:
@@ -1120,8 +1351,8 @@ end proc:
 #===============================================================================
 SamplePoint := proc(bound, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q)
 #===============================================================================
-  local n, m, s, all_params, all_vars, theta_hat, u_variables, 
-        u_hat, x_hat, y_hat, eq, eq_num, eq_denom, 
+  local n, m, s, all_params, all_vars, theta_hat, u_variables,
+        u_hat, x_hat, y_hat, eq, eq_num, eq_denom,
         v, poly, i, j, all_subs, roll, to_compute;
   n := nops(x_vars):
   m := nops(y_vars):
@@ -1131,13 +1362,13 @@ SamplePoint := proc(bound, x_vars, y_vars, u_vars, mu, X_eq, Y_eq, Q)
 
   roll := rand(0 .. bound):
   while true do
-    theta_hat := map(p -> p = roll(), all_params): 
+    theta_hat := map(p -> p = roll(), all_params):
     u_variables := [];
     for i from 1 to nops(u_vars) do
       u_variables := [ op(u_variables), seq(MakeDerivative(u_vars[i], j), j = 0..s + 1) ]:
     end do:
-    u_hat := map(p -> p = roll(), u_variables) :   
-  
+    u_hat := map(p -> p = roll(), u_variables) :
+
     all_subs := [op(theta_hat), op(u_hat)]:
     if subs(all_subs, Q) = 0 then
       next
@@ -1171,7 +1402,7 @@ GenerateReplica := proc(equations, r)
   for i from 1 to r do
     subst := map(f -> f = convert(cat(convert(f, string), "_r", i), symbol), without_t):
     result := [op(result), op(map(e -> subs(subst, e), equations))]:
-  end do: 
+  end do:
   return result:
 end proc:
 
@@ -1217,177 +1448,186 @@ local logsofar;
 	if logsofar <> "" then
 		logsofar := logsofar, "\n";
 	end if;
-	
+
 	DocumentTools:-SetProperty(target, value, cat(logsofar,s), 'refresh');
 
 end proc:
 
-examples := table([  
+examples := table([
   	"Biohydrogenation" = [ "Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\n Review: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (3) in Supplementary Material 2, initial conditions are assumed to be unknown",
   	[
-  "dx4/dt = - k5 * x4 / (k6 + x4);\n",
-  "dx5/dt = k5 * x4 / (k6 + x4) - k7 * x5/(k8 + x5 + x6);\n",
-  "dx6/dt = k7 * x5 / (k8 + x5 + x6) - k9 * x6 * (k10 - x6) / k10;\n",
-  "dx7/dt = k9 * x6 * (k10 - x6) / k10;\n",
-  "y1 = x4;\n",
+  "dx4/dt = - k5 * x4 / (k6 + x4),\n",
+  "dx5/dt = k5 * x4 / (k6 + x4) - k7 * x5/(k8 + x5 + x6),\n",
+  "dx6/dt = k7 * x5 / (k8 + x5 + x6) - k9 * x6 * (k10 - x6) / k10,\n",
+  "dx7/dt = k9 * x6 * (k10 - x6) / k10,\n",
+  "y1 = x4,\n",
   "y2 = x5"]],
 
   	"Chemical Reaction Network" = ["Taken from  Conradi, C., Shiu, A., Dynamics of post-translational modification systems: recent progress and future directions Eq. 3.4",
 	[
-  "dx1/dt = -k1 * x1 * x2 + k2 * x4 + k4 * x6;\n",
-  "dx2/dt = k1 * x1 * x2 + k2 * x4 + k3 * x4;\n",
-  "dx3/dt = k3 * x4 + k5 * x6 - k6 * x3 * x5;\n",
-  "dx4/dt = k1 * x1 * x2 - k2 * x4 - k3 * x4;\n",
-  "dx5/dt = k4 * x6 + k5 * x6 - k6 * x3 * x5;\n",
-  "dx6/dt = -k4 * x6 - k5 * x6 + k6 * x3 * x5;\n",
-  "y1 = x3;\n"
-  "y2 = x2;\n" ]],
+  "dx1/dt = -k1 * x1 * x2 + k2 * x4 + k4 * x6,\n",
+  "dx2/dt = k1 * x1 * x2 + k2 * x4 + k3 * x4,\n",
+  "dx3/dt = k3 * x4 + k5 * x6 - k6 * x3 * x5,\n",
+  "dx4/dt = k1 * x1 * x2 - k2 * x4 - k3 * x4,\n",
+  "dx5/dt = k4 * x6 + k5 * x6 - k6 * x3 * x5,\n",
+  "dx6/dt = -k4 * x6 - k5 * x6 + k6 * x3 * x5,\n",
+  "y1 = x3,\n"
+  "y2 = x2,\n" ]],
 
 	"DAISY Ex. 3" = ["DAISY Example 3", [
-  "dx1/dt = -1 * p1 * x1 + p2 * x2 + u(t);\n",
-  "dx2/dt = p3 * x1 - p4 * x2 + p5 * x3;\n",
-  "dx3/dt = p6 * x1 - p7 * x3;\n",
-  "y1 = x1;\n"]],
+  "dx1/dt = -1 * p1 * x1 + p2 * x2 + u(t),\n",
+  "dx2/dt = p3 * x1 - p4 * x2 + p5 * x3,\n",
+  "dx3/dt = p6 * x1 - p7 * x3,\n",
+  "y1 = x1,\n"]],
 
 	"DAISY_mamil3" = ["DAISY mamil 3",
 	[
-  "dx1/dt = -(a21 + a31 + a01) * x1 + a12 * x2 + a13 * x3 + u(t);\n",
-  "dx2/dt = a21 * x1 - a12 * x2;\n",
-  "dx3/dt = a31 * x1 - a13 * x3;\n",
+  "dx1/dt = -(a21 + a31 + a01) * x1 + a12 * x2 + a13 * x3 + u(t),\n",
+  "dx2/dt = a21 * x1 - a12 * x2,\n",
+  "dx3/dt = a31 * x1 - a13 * x3,\n",
   "y = x1"]],
-  
+
 	"DAISY_mamil4" = ["DAISY mamil 4", [
-  "dx1/dt = -k01 * x1 + k12 * x2 + k13 * x3 + k14 * x4 - k21 * x1 - k31 * x1 - k41 * x1 + u(t);\n",
-  "dx2/dt = -k12 * x2 + k21 * x1;\n",
-  "dx3/dt = -k13 * x3 + k31 * x1;\n",
-  "dx4/dt = -k14 * x4 + k41 * x1;\n",
+  "dx1/dt = -k01 * x1 + k12 * x2 + k13 * x3 + k14 * x4 - k21 * x1 - k31 * x1 - k41 * x1 + u(t),\n",
+  "dx2/dt = -k12 * x2 + k21 * x1,\n",
+  "dx3/dt = -k13 * x3 + k31 * x1,\n",
+  "dx4/dt = -k14 * x4 + k41 * x1,\n",
   "y = x1"]],
 
 	"HIV" = ["Example (with initial conditions assumed being unknown) from Section IV of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies' by G. Bellu, M.P. Saccomani",
 	[
-  "dx1/dt = -b * x1 * x4 - d * x1 + s;\n",
-  "dx2/dt = b * q1 * x1 * x4 - k1 * x2 - mu1 * x2;\n",
-  "dx3/dt = b * q2 * x1 * x4 + k1 * x2 - mu2 * x3;\n",
-  "dx4/dt = -c * x4 + k2 * x3;\n",
-  "y1 = x1;\n",
+  "dx1/dt = -b * x1 * x4 - d * x1 + s,\n",
+  "dx2/dt = b * q1 * x1 * x4 - k1 * x2 - mu1 * x2,\n",
+  "dx3/dt = b * q2 * x1 * x4 + k1 * x2 - mu2 * x3,\n",
+  "dx4/dt = -c * x4 + k2 * x3,\n",
+  "y1 = x1,\n",
   "y2 = x4"]],
 
 	"HIV2" = ["The system is taken from Wodarz, D., Nowak, M.\nSpecific therapy regimes could lead to long-term immunological control of HIV\nhttps://doi.org/10.1073/pnas.96.25.14464\nPage 1",
 	[
-  "dx/dt = lm - d * x - beta * x * v;\n",
-  "dy/dt = beta * x * v - a * y;\n",
-  "dv/dt = k * y - u * v;\n",
-  "dw/dt = c * x * y * w - c * q * y * w - b * w;\n",
-  "dz/dt = c * q * y * w - h * z;\n",
-  "y1 = w;\n",
+  "dx/dt = lm - d * x - beta * x * v,\n",
+  "dy/dt = beta * x * v - a * y,\n",
+  "dv/dt = k * y - u * v,\n",
+  "dw/dt = c * x * y * w - c * q * y * w - b * w,\n",
+  "dz/dt = c * q * y * w - h * z,\n",
+  "y1 = w,\n",
   "y2 = z"]],
 
 	"Lipolysis" = ["Taken from R. Munoz-Tamayo, L. Puillet, J.B. Daniel, D. Sauvant, O. Martin, M. Taghipoor, P. Blavy\nReview: To be or not to be an identifiable model. Is this a relevant question in animal science modelling?\ndoi.org/10.1017/S1751731117002774\nSystem (1) in Supplementary Material 2, initial conditions are assumed to be unknown\nbrought to the rational function form by introducing new state variable x5 = k1 e^(-k3 t)",
 	[
-  "dx1/dt = -x1 * x5 / (k2 + x1);\n",
-  "dx2/dt = 2 * x1 * x5 / ((k2 + x1) * 3) - k4 * x2;\n",
-  "dx3/dt = k4*(x2)/2 - k4*x3;\n",
-  "dx4/dt = x1 * x5 / (3 * (k2 + x1)) + k4 * (x2)/2 + k4 * x3;\n",
-  "dx5/dt = -k3 * x5;\n",
-  "y1 = x1;\n",
-  "y2 = x2 + x3;\n",
+  "dx1/dt = -x1 * x5 / (k2 + x1),\n",
+  "dx2/dt = 2 * x1 * x5 / ((k2 + x1) * 3) - k4 * x2,\n",
+  "dx3/dt = k4*(x2)/2 - k4*x3,\n",
+  "dx4/dt = x1 * x5 / (3 * (k2 + x1)) + k4 * (x2)/2 + k4 * x3,\n",
+  "dx5/dt = -k3 * x5,\n",
+  "y1 = x1,\n",
+  "y2 = x2 + x3,\n",
   "y3 = x4"]],
 
   	"LV" = ["Lotka-Volterra System",[
-  	"dx1/dt = a*x1 - b*x1*x2;\n", 
-  	"dx2/dt = -c*x2 + d*x1*x2;\n",
-  	"y = x1;\n"]],
+  	"dx1/dt = a*x1 - b*x1*x2,\n",
+  	"dx2/dt = -c*x2 + d*x1*x2,\n",
+  	"y = x1,\n"]],
 	"OralGlucose" = ["Example (with initial conditions assumed being unknown) from Section III of 'DAISY: an Efficient Tool to Test Global Identifiability. Some Case Studies'\nby G. Bellu, M.P. Saccomani",
 	[
-  "dG/dt = -(p1 + X) * G + p1 * Gb + v * R;\n",
-  "dX/dt = -p2 * X + p3 * (u(t) - Ib);\n",
-  "dR/dt = k;\n",
-  "dIb/dt = 0;\n",
-  "dGb/dt = 0;\n",
-  "y1 = G;\n",
-  "y2 = Ib;\n",
-  "y3 = Gb;\n"]],
+  "dG/dt = -(p1 + X) * G + p1 * Gb + v * R,\n",
+  "dX/dt = -p2 * X + p3 * (u(t) - Ib),\n",
+  "dR/dt = k,\n",
+  "dIb/dt = 0,\n",
+  "dGb/dt = 0,\n",
+  "y1 = G,\n",
+  "y2 = Ib,\n",
+  "y3 = Gb,\n"]],
+
+  "Pharm" = [["Example 6.4 in the paper \"Global Identifiability of Differential Models\", taken from Demignot, S., D., D., Effect of prosthetic sugar groups on the pharmacokinetics of glucose-oxidase"],
+  ["diff(x1(t), t) = (a1 * (x2(t) - x1(t))) - (ka * n * x1(t)) / (kc * ka + kc * x3(t) + ka * x1(t)),\n",
+  "diff(x2(t), t) = (a1 * (x1(t) - x2(t))),\n",
+  "diff(x3(t), t) = (b1 * (x4(t) - x3(t))) - (kc * n * x3(t)) / (kc * ka + kc * x3(t) + ka * x1(t)),\n",
+  "diff(x4(t), t) = (b2 * (x3(t) - x4(t))),\n",
+  "y1(t) = x1(t)"]],
 
 	"SEIR" = ["Taken from N. Tuncer, T. Le\n'Structural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.2) with prevalence observations",
 [
-  "dS/dt = -b * S * In / N;\n",
-  "dE/dt = b * S * In / N - nu * E;\n",
-  "dIn/dt = nu * E - a * In;\n",
-  "dN/dt = 0;\n",
-  "y1 = In;\n",
-  "y2 = N;\n"]],
+  "dS/dt = -b * S * In / N,\n",
+  "dE/dt = b * S * In / N - nu * E,\n",
+  "dIn/dt = nu * E - a * In,\n",
+  "dN/dt = 0,\n",
+  "y1 = In,\n",
+  "y2 = N,\n"]],
 
 	"SEIR2" = ["Taken from N. Tuncer, T. Le\n'Structural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.2) with cumulative incidence observations",
 	[
-  "dS/dt = -b * S * In / N;\n",
-  "dE/dt = b * S * In / N - nu * E;\n",
-  "dIn/dt = nu * E - a * In;\n",
-  "dN/dt = 0;\n",
-  "dCu/dt = nu * E;\n",
-  "y1 = Cu;\n",
+  "dS/dt = -b * S * In / N,\n",
+  "dE/dt = b * S * In / N - nu * E,\n",
+  "dIn/dt = nu * E - a * In,\n",
+  "dN/dt = 0,\n",
+  "dCu/dt = nu * E,\n",
+  "y1 = Cu,\n",
   "y2 = N"]],
 
 	"SIR_R0" = ["SIR R0",[
-  "dS/dt = -b * In * S;\n",
-  "dIn/dt = b * In * S - g * In;\n",
-  "dR/dt = g * In;\n",
-  "daux/dt = 0;\n",
-  "y1 = In;\n",
+  "dS/dt = -b * In * S,\n",
+  "dIn/dt = b * In * S - g * In,\n",
+  "dR/dt = g * In,\n",
+  "daux/dt = 0,\n",
+  "y1 = In,\n",
   "y2 = b / g + aux;"]],
 
 	"SIRSForced" = ["Taken from Capistran M., Moreles M., Lara B.\n'Parameter Estimation of Some Epidemic Models.\n The Case of Recurrent Epidemics Caused by Respiratory Syncytial Virus'\ndoi.org/10.1007/s11538-009-9429-3\nEquations (7)-(11)",
 [
-  "ds/dt = mu - mu * s - b0 * (1 + b1 * x1) * i * s + g * r;\n",
-  "di/dt = b0 * (1 + b1 * x1) * i * s - (nu + mu) * i;\n",
-  "dr/dt = nu * i - (mu + g) * r;\n",
-  "dx1/dt = -M * x2;\n",
-  "dx2/dt = M * x1;\n",
-  "y1 = i;\n",
-  "y2 = r;\n"]],
+  "ds/dt = mu - mu * s - b0 * (1 + b1 * x1) * i * s + g * r,\n",
+  "di/dt = b0 * (1 + b1 * x1) * i * s - (nu + mu) * i,\n",
+  "dr/dt = nu * i - (mu + g) * r,\n",
+  "dx1/dt = -M * x2,\n",
+  "dx2/dt = M * x1,\n",
+  "y1 = i,\n",
+  "y2 = r"]],
 
 	"SlowFast" = ["Taken from Vajda S., Rabitz H.\n'Identifiability and Distinguishability of First-Order Reaction Systems', p. 701\nWe added an extra output x_C",
 	[
-  "dxA/dt = -k1 * xA;\n",
-  "dxB/dt = k1 * xA - k2 * xB;\n",
-  "dxC/dt = k2 * xB;\n",
-  "deA/dt = 0;\n",
-  "deC/dt = 0;\n",
-  "y1 = eA * xA + eB * xB + eC * xC;\n",
-  "y2 = xC;\n",
-  "y3 = eA;\n",
+  "dxA/dt = -k1 * xA,\n",
+  "dxB/dt = k1 * xA - k2 * xB,\n",
+  "dxC/dt = k2 * xB,\n",
+  "deA/dt = 0,\n",
+  "deC/dt = 0,\n",
+  "y1 = eA * xA + eB * xB + eC * xC,\n",
+  "y2 = xC,\n",
+  "y3 = eA,\n",
   "y4 = eC"]],
-	
+
 	"Treatment" = ["Taken from N. Tuncer, T. Le\nStructural and practical identifiability analysis of outbreak models'\nhttps://doi.org/10.1016/j.mbs.2018.02.004\nEquation (2.3) with observed treatment",
 	[
-  "dS/dt = -b * S * In / N - d * b * S * Tr / N;\n",
-  "dIn/dt = b * S * In / N + d * b * S * Tr / N - (a + g) * In;\n",
-  "dTr/dt = g * In - nu * Tr;\n",
-  "dN/dt = 0;\n",
-  "y1 = Tr;\n",
+  "dS/dt = -b * S * In / N - d * b * S * Tr / N,\n",
+  "dIn/dt = b * S * In / N + d * b * S * Tr / N - (a + g) * In,\n",
+  "dTr/dt = g * In - nu * Tr,\n",
+  "dN/dt = 0,\n",
+  "y1 = Tr,\n",
   "y2 = N"]],
 
 	"Tumor" = ["Example (with initial conditions assumed being unknown) from Section 3 of\n'Examples of testing global identifiability of biological and biomedical models with the DAISY software'\nby M.P. Saccomani, S. Audoly, G. Bellu, L. D'Angio",
-[ "dx1/dt = -(k3 + k7) * x1 + k4 * x2;\n",
-  "dx2/dt = k3 * x1 - (k4 + a * k5 + b * d1 * k5) * x2 + k6 * x3 + k6 * x4 + k5 * x2 * x3 + k5 * x2 * x4;\n",
-  "dx3/dt = a * k5 * x2 - k6 * x3 - k5 * x2 * x3;\n",
-  "dx4/dt = b * d1 * k5 * x2 - k6 * x4 - k5 * x2 * x4;\n",
-  "dx5/dt = k7 * x1;\n",
-  "da/dt = 0;\n",
-  "db/dt = 0;\n",
-  "dd1/dt = 0;\n",
-  "y1 = x5;\n",
-  "y2 = a;\n",
-  "y3 = b;\n",
-  "y4 = d1;\n"]]
+[ "dx1/dt = -(k3 + k7) * x1 + k4 * x2,\n",
+  "dx2/dt = k3 * x1 - (k4 + a * k5 + b * d1 * k5) * x2 + k6 * x3 + k6 * x4 + k5 * x2 * x3 + k5 * x2 * x4,\n",
+  "dx3/dt = a * k5 * x2 - k6 * x3 - k5 * x2 * x3,\n",
+  "dx4/dt = b * d1 * k5 * x2 - k6 * x4 - k5 * x2 * x4,\n",
+  "dx5/dt = k7 * x1,\n",
+  "da/dt = 0,\n",
+  "db/dt = 0,\n",
+  "dd1/dt = 0,\n",
+  "y1 = x5,\n",
+  "y2 = a,\n",
+  "y3 = b,\n",
+  "y4 = d1,\n"]]
 ]):
 
 # Setup
 
-timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions, char)
+timed_SIAN:=proc(sigma, params_to_assess, p, output_targets_sian, count_solutions, ch, w)
 	local output, data, start, finish:
 	start:= time():
-  #IdentifiabilityODE := proc(system_ODEs, params_to_assess, output_targets_sian, {char:=0, p := 0.99, count_solutions:=true, infolevel := 1, method := 2, num_nodes := 6})
-	output := IdentifiabilityODE(sigma, params_to_assess, output_targets_sian, char=char, p=p, count_solutions=count_solutions, infolevel=1, method=2, num_nodes=1):
+	# LogExpression(sprintf("%q\n", convert(ch, string)), "LogAreaSIAN"):
+              #IdentifiabilityODE(system_ODEs, params_to_assess, output_targets_sian, {p := 0.99, count_solutions:=true,  char:=0})
+	output := IdentifiabilityODE(sigma, params_to_assess, output_targets_sian, ':-p'=p, ':-count_solutions'=count_solutions, ':-infolevel'=1, ':-method'=2, ':-num_nodes'=1, ':-char'=char, ':-use_weights'=w):
+	#IdentifiabilityODE(sigma, params_to_assess, output_targets_sian, p=p, count_solutions=count_solutions, char=ch):
 	finish:= time():
 	DocumentTools:-SetProperty(output_targets_sian[runningtime], value, convert(finish-start, string), 'refresh'): # time
 	return  output:
@@ -1420,19 +1660,19 @@ sigmaParser := proc(sigma)
 	else
 		LogExpression(sprintf("%q \n", Split(sigma, ";")), "LogAreaSIAN"):
 		sigma := Split(sigma, ";"):
-		
+
 		states := map(x->Trim(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "\\1", x)), select(x->SearchText(x, "/dt")>0, sigma)):
 		state_eqs := select(x->Has(x, "/dt"), sigma):
-		
+
 		outputs :=  map(x->Trim(Split(x, "=")[1]), select(x->not Has(x, "/dt"), sigma)):
 		output_eqs := select(x->not SearchText(x, "/dt")>0, sigma):
-		
+
 		state_eqs := map(x->convert(subs({seq(parse(states[i])=parse(cat(states[i],"(t)")), i=1..nops(states))}, parse(x)), string),  state_eqs):
 		state_eqs := map(x->parse(RegSubs("d([a-zA-Z0-9]+)/dt(.*)" = "diff(\\1(t), t)\\2", x)), state_eqs):
-	
-		output_eqs := map(x->parse(Subs({seq(outputs[i]=cat(outputs[i],"(t)"), i=1..nops(outputs))}, x)), output_eqs):	
+
+		output_eqs := map(x->parse(Subs({seq(outputs[i]=cat(outputs[i],"(t)"), i=1..nops(outputs))}, x)), output_eqs):
 		output_eqs := map(x->subs({seq(parse(states[i])=parse(cat(states[i],"(t)")), i=1..nops(states))}, x),  output_eqs):
-		
+
 		sigma := [op(state_eqs), op(output_eqs)]:
 	end if:
 	return sigma;
@@ -1493,14 +1733,17 @@ DocumentTools:-SetProperty("Permutations", enabled, false):
 DocumentTools:-SetProperty("RunSIAN", enabled, true):
 DocumentTools:-SetProperty("RunSIAN", value, true):
 DocumentTools:-SetProperty("being_refined", caption, "");
-DocumentTools:-SetProperty("sigma", value, "dx1/dt = a*x1 + x2*b + u(t);\ndx2/dt = x2*c + x1;\ny=x2"):
+DocumentTools:-SetProperty("sigma", value, "dx1/dt = a*x1 + x2*b + u(t),\ndx2/dt = x2*c + x1,\ny=x2"):
 DocumentTools:-SetProperty("example_box", value, "Custom"):
 DocumentTools:-SetProperty(reference, value, ""):
 DocumentTools:-SetProperty("LocalLabel" , caption, "Locally Identifiable Paramters");
 DocumentTools:-SetProperty(TxtOutput, visible, false);
 DocumentTools:-SetProperty(TxtOutput, value, "");
 DocumentTools:-SetProperty(SaveOutputLabel, visible, false);
-
+DocumentTools:-SetProperty(HideOutput, visible, false);
+DocumentTools:-SetProperty(ProgressBar, value, "");
+DocumentTools:-SetProperty(UseWeights, value, false);
+DocumentTools:-SetProperty(UseWeights, enabled, true);
 readyToSave:=false:
 counter:=0:
-exname:="Custom"
+exname:="Custom":
